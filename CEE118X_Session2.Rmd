@@ -6,12 +6,49 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE) #html process
 ```
 **Remember to set working directory on the bottom right corner 
 **Stored at GitHub libill1997 folder 
+**commit to main on github desktop app - then hit publish branch - remember to hit refresh
+** Then the file will uploaded to the website
+** https://libill1997.github.io/CEE118X_Session2.html <- that is your website. 
+** For the assignment, send the link. 
+
+
+```{r}
+library(tidyverse) #you can use library() to check what packages you have
+health_full <- read_csv("https://chronicdata.cdc.gov/api/views/swc5-untb/rows.csv?accessType=DOWNLOAD&bom=true&format=true") #use command enter 
+
+head(health_full) #use head to see data summary 
+```
+* Use -> install.packages("tidyverse") you can install in your console. 
+*use write_csv(health_full, "file path")
+```{r}
+write_csv(health_full, "health_full.csv") #you don't have to set up file path in this case because your working directory is set as github folder. 
+```
+
+```{r}
+health_full_again <- read_csv("health_full.csv") #you read the file from local csv file
+
+rm(health_full_again) #to remove file from global environment 
+```
+
+*Set up for Assignment 1 PG&E
+*use loop to combine all 4 csv into 1 csv
+```{r} 
+#How to use loops
+
+
+```
+
+
+
 
 ## R Markdown
+
+
+
 
 This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
 
