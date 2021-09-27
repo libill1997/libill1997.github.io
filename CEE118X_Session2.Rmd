@@ -15,6 +15,7 @@ knitr::opts_chunk$set(echo = TRUE) #html process
 ** https://libill1997.github.io/CEE118X_Session2.html <- that is your website. 
 ** For the assignment, send the link. 
 
+Use command + option + i to insert a new chunk
 
 ```{r}
 library(tidyverse) #you can use library() to check what packages you have
@@ -38,19 +39,224 @@ rm(health_full_again) #to remove file from global environment
 *use loop to combine all 4 csv into 1 csv
 ```{r} 
 #How to use loops
+library(tidyverse)
+year<-2020
+quarters<-1:4
+type<-"Electric"
+pge_20_elec <- NULL #reserve the filename
+
+for(quarter in quarters) {
+  filename<- paste0(
+    "PGE_",
+    year,
+    "_Q",
+    quarter,
+    "_",
+    type,
+    "UsageByZip.csv"
+  )
+  print(filename)
+  temp<-read_csv(filename) #made all 4 quarters of PGE data into one csv
+  pge_20_elec<-rbind(pge_20_elec, temp) #combine 4 csv files into one in global environment 
+  
+  saveRDS(pge_20_elec, "pge_20_elec.rds") #save into rds format
+  write_csv(pge_20_elec, "pge_20_elec.csv") #save into csv format, not necessary
+}
 
 
+```
+
+```{r}
+pge_filter<- filter(pge_20_elec, CUSTOMERCLASS %in% c("Elec- Residential", "Elec- Commercial") ) # %in% means include items of interest under CUSTOMERCLASS category, in this class we only interested in data having Elect residential and Elec commercial 
+
+```
+
+```{r} 
+#Use Select to remove or keep main categories from a file 
+names(pge_filter) #show the available categories
+
+head(pge_filter) #show the available categories along with few rows of data
+
+```
+
+```{r}
+pge_filter[1,1] #use [ ] to see the row and columns
+```
+
+```{r} 
+pge_filter[1:5, 1:5] # First term represents row, second term is column
+```
+
+```{r}
+pge_filter[1:5, c("ZIPCODE","MONTH", "YEAR")] #5 rows but only three columns of desire categories, c() basically allows you to create desire vectors.
+```
+
+```{r}
+pge_filter[1:5,] #only 5 rows but display all categories
+```
+
+```{r}
+pge_filter[1:5,]$YEAR #display 5 columns of data under category YEAR
+```
+
+```{r}
+pge_select<- 
+  select(
+    pge_filter,
+    ZIPCODE,
+    MONTH,
+    CUSTOMERCLASS,
+    COMBINED,
+    TOTALCUSTOMERS,
+    TOTALKWH,
+    AVERAGEKWH
+  )
+#Select all categories from pge_filter
+pge_select<- select(pge_filter, -YEAR) # use -Year to get rid of year column from pge_filter
+```
+
+```{r}
+table(pge_select$COMBINED) #use table() to quickly see the category in interest 
+```
+
+```{r}
+pge_select<- select(
+  pge_filter,
+  -c(YEAR,COMBINED,AVERAGEKWH)) #get rid of these three unnecessary categories with -c() also works. 
+```
+
+```{r}
+pge_group<- group_by(
+  pge_select,
+  MONTH,
+  CUSTOMERCLASS
+) #group month and customerclass together for the next operation
+```
+
+```{r}
+pge_summarize<- summarize(pge_group,
+                          TOTALKWH = 
+                            sum(TOTALKWH, na.rm=T))
+#Although the group_by function did not change the data in the global environment. summarize() recognized the group_by() to create two columns with just MONTH and CUSTOMERCLASS.
+#Since you also add TOTALKWH, it will also retain the category. sum() takes all values of TOTALKWH from the pge_group that share the same MONTH and CUSTOMERCLASS and add them together. 
+#na.rm= T gets rid of empty fields, generally should be included. 
+```
+*This is considered tidying the data --> tidyverse 
+
+```{r}
+pge_wide<- pivot_wider(
+  pge_summarize,
+  names_from = CUSTOMERCLASS,
+  values_from = TOTALKWH
+) #convert pg_summarize into a easier look at version
+```
+
+```{r}
+pge_tidy<- pivot_longer(
+  pge_wide,
+  c("Elec- Commercial", "Elec- Residential"),
+  names_to = "CUSTOMERCLASS",
+  values_to = "TOTALKWH"
+) #Transform the data from wide version into pge_summarize version, so more difficult to look at.
+```
+
+```{r}
+pge_summarize<-
+  summarise(
+    pge_group,
+    TOTALKWH=
+      sum(
+        TOTALKWH,
+        na.rm=T
+      ),
+    TOTALCUSTOMERS=
+      sum(
+        TOTALCUSTOMERS,
+        na.rm=T
+      )
+  ) # summarise TOTALKWH and TOTALCUSTOMERS along with month (done in pge_group step)
+```
+
+```{r}
+pge_mutate<- 
+  mutate(
+    pge_summarize,
+    AVERAGEKWH=
+      TOTALKWH/TOTALCUSTOMERS
+  ) #mutate() creates a new field. In this case it's called AVERAGEKWH which is Totalkwh divide by Totalcustomers
+```
+
+```{r}
+# %>% is pipe function which allows you do not need to use a bunch of <- to define every operations. Things from above can be done like this:
+
+pge_final <-
+  pge_20_elec %>%
+  filter(
+    CUSTOMERCLASS %in% 
+      c(
+        "Elec- Residential",
+        "Elec- Commercial"
+      )
+  )%>%
+  select(
+    -c(YEAR, COMBINED,AVERAGEKWH)
+  )%>%
+  group_by(MONTH, CUSTOMERCLASS) %>%
+  summarize(
+    TOTALKWH=
+      sum(TOTALKWH,
+          na.rm=T
+          ),
+    TOTALCUSTOMERS=
+      sum(TOTALCUSTOMERS,
+          na.rm=T
+          )
+  )%>%
+  mutate(
+    AVERAGEKWH=
+      TOTALKWH/TOTALCUSTOMERS
+  ) #Treat %>% as "and then" 
+```
+
+```{r}
+#Making a stacked bar chart
+library(tidyverse)
+
+pge_chart<-
+  pge_final %>%
+  ggplot() +
+  geom_bar(
+    aes(    #aes() plotting function
+      x=MONTH %>% factor(),   #factor() will refer month as January instead of numbers
+      y=TOTALKWH,
+      fill= CUSTOMERCLASS #specify a field 
+    ),
+    stat="identity", #stat= distinguish between identity and count so the difference between couting kwh("identity") and number of entries("count")
+    position="stack" #postion= allows you to "stack" the two different electricity type or you can "dodge" which put them side by side
+  ) +
+  labs( #use labs to specify labels
+    x="Month", 
+    y="kwh",
+    title= "PG&E Territory Monthly Electricity Usage, 2019",
+    fill= "Electricity Type"
+  )
+pge_chart
+```
+
+```{r}
+install.packages("plotly")
+library(plotly)
+```
+
+```{r}
+pge_chart %>% ggplotly() #use ggplotly() to produce an interactive chart
 ```
 
 
 
 
-## R Markdown
-
-
-
-
 This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
 
 When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
 
