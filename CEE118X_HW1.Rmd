@@ -252,4 +252,5 @@ pge_com_chart
 pge_com_covid_chart
 ```
 
-*ANS: For both residential and commercial electricity and gas usage, the general trend is similar for pre-pandemic and covid era. Both Commercial and Residential use more gas in the winter and more electricity in the summer. 
+*ANS: For both residential and commercial electricity and gas usage, the general trend is similar for pre-pandemic and covid era. Both Commercial and Residential use more gas in the winter and more electricity in the summer.
+In the 2017-2020 data, I did not distinguish the various years in my data. As a result, variations in certain months of years can be mask by the chart. We assume that monthly data are similar among these years in this case. 
