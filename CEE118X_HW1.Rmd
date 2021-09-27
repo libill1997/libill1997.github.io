@@ -161,7 +161,7 @@ pge_res_chart<- pge_res %>% #only display electricity data
     title= "PG&E Residential Gas and Electricity Usage, 2017-2020",
     fill="Electricity Type"
   )
-pge_res_chart %>% ggplotly()
+pge_res_chart 
 
 ```
 
@@ -183,7 +183,7 @@ pge_com_chart<- pge_com %>% #only display electricity data
     title= "PG&E Commercial Gas and Electricity Usage, 2017-2020",
     fill="Electricity Type"
   )
-pge_com_chart %>% ggplotly()
+pge_com_chart 
 ```
 
 ```{r}
