@@ -75,7 +75,7 @@ pge_elec_final<- select(
         "Elec- Commercial", "Elec- Residential"
       )
     )%>%
-  group_by(MONTH, CUSTOMERCLASS)%>% #Use group_by() to avoid system getting rid of month and customerclass in summarize() function
+  group_by(YEAR, MONTH, CUSTOMERCLASS)%>% #Use group_by() to avoid system getting rid of month and customerclass in summarize() function
   summarize(
   TOTALCUSTOMERS=
     sum(TOTALCUSTOMERS,
@@ -101,7 +101,7 @@ pge_gas_final<- select(
       c(
         "Gas- Commercial", "Gas- Residential"
       ))%>%
-  group_by(MONTH, CUSTOMERCLASS)%>%
+  group_by(YEAR, MONTH, CUSTOMERCLASS)%>%
   summarize(
     TOTALCUSTOMERS= 
       sum(TOTALCUSTOMERS,
@@ -187,7 +187,69 @@ pge_com_chart
 ```
 
 ```{r}
-
+pge_covid_res<- pge_res%>%
+  filter(YEAR%in%
+           c(2020))
 ```
 
+```{r}
+pge_covid_com<- pge_com%>%
+  filter(YEAR%in%
+           c(2020))
+```
 
+```{r}
+pge_res_covid_chart<- pge_covid_res %>% #only display electricity data
+  ggplot()+
+  geom_bar(
+    aes(
+      x=MONTH %>% factor(),
+      y=TOTALKBTU,
+      fill= CUSTOMERCLASS 
+    ),
+    stat="identity",
+    position="stack"
+  )+
+  labs(
+    x="Month",
+    y="Total KBTU",
+    title= "PG&E Residential Gas and Electricity Usage 2020",
+    fill="Electricity Type"
+  )
+pge_res_covid_chart 
+```
+
+```{r}
+pge_com_covid_chart<- pge_covid_com %>% #only display electricity data
+  ggplot()+
+  geom_bar(
+    aes(
+      x=MONTH %>% factor(),
+      y=TOTALKBTU,
+      fill= CUSTOMERCLASS 
+    ),
+    stat="identity",
+    position="stack"
+  )+
+  labs(
+    x="Month",
+    y="Total KBTU",
+    title= "PG&E Commercial Gas and Electricity Usage 2020",
+    fill="Electricity Type"
+  )
+pge_com_covid_chart 
+```
+
+```{r}
+par(mfrow=c(1,2))
+pge_res_chart
+pge_res_covid_chart
+```
+
+```{r}
+par(mfrow=c(1,2))
+pge_com_chart
+pge_com_covid_chart
+```
+
+*ANS: For both residential and commercial electricity and gas usage, the general trend is similar for pre-pandemic and covid era. Both Commercial and Residential use more gas in the winter and more electricity in the summer. 
