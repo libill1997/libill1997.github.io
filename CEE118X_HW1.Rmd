@@ -86,7 +86,16 @@ pge_elec_final<- select(
   mutate(
     TOTALKBTU=
       TOTALKWH*3.412
-  )  
+  )%>%
+  mutate(                   #Use paste() to combine year and month data
+    DATE=
+      paste(
+        YEAR,
+        MONTH,
+        "01",
+        sep="-"
+      )%>% as.Date()
+  )
   
   
 ```
@@ -112,7 +121,16 @@ pge_gas_final<- select(
       mutate(
         TOTALKBTU=
           TOTALTHM*100
-      )
+      )%>%
+  mutate(
+    DATE=
+      paste(
+        YEAR,
+        MONTH,
+        "01",
+        sep="-"
+      )%>% as.Date()
+  )
   
   
 ```
@@ -139,8 +157,8 @@ pge_gas_com<- filter(pge_gas_final,
 ```
 
 ```{r}
-pge_res<- rbind(pge_elec_res, pge_gas_res)%>% arrange(+MONTH) #use arrange here to organize data
-pge_com<- rbind(pge_elec_com, pge_gas_com)%>% arrange(+MONTH)
+pge_res<- rbind(pge_elec_res, pge_gas_res) #use arrange here to organize data
+pge_com<- rbind(pge_elec_com, pge_gas_com)
 ```
 
 ```{r}
@@ -148,7 +166,7 @@ pge_res_chart<- pge_res %>% #only display electricity data
   ggplot()+
   geom_bar(
     aes(
-      x=MONTH %>% factor(),
+      x=DATE %>% factor(),
       y=TOTALKBTU,
       fill= CUSTOMERCLASS 
     ),
@@ -160,7 +178,8 @@ pge_res_chart<- pge_res %>% #only display electricity data
     y="Total KBTU",
     title= "PG&E Residential Gas and Electricity Usage, 2017-2020",
     fill="Electricity Type"
-  )
+  )+
+  scale_x_discrete(guide = guide_axis(n.dodge=7))
 pge_res_chart 
 
 ```
@@ -170,7 +189,7 @@ pge_com_chart<- pge_com %>% #only display electricity data
   ggplot()+
   geom_bar(
     aes(
-      x=MONTH %>% factor(),
+      x=DATE %>% factor(),
       y=TOTALKBTU,
       fill= CUSTOMERCLASS 
     ),
@@ -182,9 +201,57 @@ pge_com_chart<- pge_com %>% #only display electricity data
     y="Total KBTU",
     title= "PG&E Commercial Gas and Electricity Usage, 2017-2020",
     fill="Electricity Type"
-  )
+  )+
+  scale_x_discrete(guide = guide_axis(n.dodge=7))
 pge_com_chart 
 ```
+
+```{r}
+
+pge_res_elec_compare<-pge_res%>%
+  filter(CUSTOMERCLASS%in%
+           c("Elec- Residential")) %>%
+  ggplot()+   #Always define x and y axis in geom_line()
+  geom_line(aes(
+    x= MONTH,
+    y= TOTALKBTU,
+    colour=factor(YEAR)
+  ),
+  stat="identity") +
+  labs(
+    x="Month",
+    y="Total KBTU",
+    Title="PG&E Residential Electricity Usage 2017-2020"
+  )
+pge_res_elec_compare
+
+
+
+#pge_com_compare
+```
+Ans:
+
+```{r}
+pge_res_gas_compare<- pge_res%>%
+  filter(CUSTOMERCLASS%in%
+           c("Gas- Residential")) %>%
+  ggplot()+   #Always define x and y axis in geom_line()
+  geom_line(aes(
+    x= MONTH,
+    y= TOTALKBTU,
+    colour=factor(YEAR)
+  ),
+  stat="identity") +
+  labs(
+    x="Month",
+    y="Total KBTU",
+    Title="PG&E Residential Gas Usage 2017-2020"
+  )
+pge_res_gas_compare
+  
+```
+
+
 
 ```{r}
 pge_covid_res<- pge_res%>%
