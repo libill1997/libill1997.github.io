@@ -229,7 +229,8 @@ pge_res_elec_compare
 
 #pge_com_compare
 ```
-Ans:
+
+Ans:Based on the line chart above, residential electricity usage went up in 2020 from August to December comparing to the data from 2018 and 2019. There seems to be a sharp increase in residential electricity usage in 2017 between August and October. 
 
 ```{r}
 pge_res_gas_compare<- pge_res%>%
@@ -251,6 +252,7 @@ pge_res_gas_compare
   
 ```
 
+Ans: Based on the line chart above, residential gas usage in 2020 is about the same as the rest of the years with a slight increase from late October to December. There is a sharp increase in gas usage between August and October in 2017. 
 
 
 ```{r}
