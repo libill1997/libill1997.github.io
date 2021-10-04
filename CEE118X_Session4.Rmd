@@ -1,0 +1,265 @@
+---
+title: "CEE118X_HW2"
+author: "Bill Li"
+date: "10/1/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, warning=F, message = F) #warning messages and codes do not show
+```
+
+```{r}
+library(tidyverse)
+library(sf)
+library(tigris)
+library(mapview)
+library(leaflet)
+```
+
+```{r}
+ca_counties <- counties("06", cb = T, progress_bar = F) #use 06 to represent CA
+```
+
+```{r}
+st_crs(ca_counties) #Display ID["EPSG",4269]] which is the coordinate reference for the data
+```
+
+```{r}
+projection <- "+proj=utm +zone=10 +ellps=GRS80 +datum=NAD83 +units=ft +no_defs"
+
+ca_counties_transformed <- 
+  ca_counties %>% 
+  st_transform(4326) %>% 
+  st_transform(26910) %>% 
+  st_transform(projection) %>% 
+  st_transform(st_crs(ca_counties))  #Transform data spacial info into a google compatible one
+```
+
+```{r}
+leaflet() %>% 
+  addTiles() %>% 
+  addPolygons(
+    data = ca_counties
+  ) %>%
+  addMarkers(
+    data = ca_counties %>% 
+      st_centroid()
+)
+```
+```{r}
+bay_county_names <-
+  c(
+    "Alameda",
+    "Contra Costa",
+    "Marin",
+    "Napa",
+    "San Francisco",
+    "San Mateo",
+    "Santa Clara",
+    "Solano",
+    "Sonoma"
+  )
+
+bay_counties <-
+  counties("06", cb = T, progress_bar = F) %>%
+  filter(NAME %in% bay_county_names)  #Created map just in the bay area
+```
+
+
+```{r}
+ca_cities <- places("06", cb = T, progress_bar = FALSE) #use places() to filter out just cities
+```
+
+```{r}
+bay_cities <- ca_cities[bay_counties, ] #only sees the bay area counties
+
+mapview(bay_counties, alpha.regions = 0) + mapview(bay_cities)
+```
+
+```{r}
+bay_cities_within <-
+  ca_cities %>% 
+  st_centroid() %>% #Join cities in counties in centroid approach to prevent including cities outside of counties 
+  .[bay_counties, ] %>% 
+  st_set_geometry(NULL) %>% 
+  left_join(ca_cities %>% select(GEOID)) %>% #we will only keep the rows that match the pipeline object
+  #select() removes redundant field resulting from left_join()
+  st_as_sf()
+
+mapview(bay_counties, alpha.regions = 0) + mapview(bay_cities_within, label = "NAME")
+#pipeline function that  get rid of cities touching the county boundaries. 3 
+```
+
+```{r}
+leaflet() %>%  #more stylish form
+  addTiles() %>% 
+  addPolygons(
+    data = bay_counties,
+    fill = F,
+    weight = 2,
+    label = ~NAME
+  ) %>%
+  addPolygons(
+    data = bay_cities %>% 
+      filter(!GEOID %in% bay_cities_within$GEOID),
+    color = "red",
+    label = ~NAME
+  ) %>% 
+  addPolygons(
+    data = bay_cities_within,
+    color = "green",
+    label = ~NAME
+  )
+```
+
+```{r}
+bay_cbgs <- block_groups("06", bay_county_names[1:9], cb = T, progress_bar = F) #census block groups
+#display various counties sorted in a chart
+```
+```{r}
+usa_zips <- 
+  zctas(cb = T, progress_bar = F)
+
+bay_zips <-
+  usa_zips %>% 
+  st_centroid() %>% 
+  .[bay_counties, ] %>% 
+  st_set_geometry(NULL) %>% 
+  left_join(usa_zips %>% select(GEOID10)) %>% 
+  st_as_sf()
+
+pge_20_res_elec <-
+  pge_20_elec %>% 
+  filter(CUSTOMERCLASS == "Elec- Residential") %>% 
+  mutate(
+    ZIPCODE = ZIPCODE %>% as.character()
+  ) %>% 
+  group_by(ZIPCODE) %>% 
+  summarize(
+    TOTALKWH = sum(TOTALKWH, na.rm = T)
+  ) %>% 
+  right_join(
+    bay_zips %>% select(GEOID10),
+    by = c("ZIPCODE" = "GEOID10")
+  ) %>% 
+  st_as_sf() %>% 
+  st_transform(4326)
+```
+
+```{r}
+res_pal <- colorNumeric(
+  palette = "Reds",
+  domain = 
+    pge_20_res_elec$TOTALKWH
+)
+
+leaflet() %>% 
+  addTiles() %>% 
+  addPolygons(
+    data = pge_20_res_elec,
+    fillColor = ~res_pal(TOTALKWH),
+    color = "white",
+    opacity = 0.5,
+    fillOpacity = 0.5,
+    weight = 1,
+    label = ~paste0(
+      round(TOTALKWH), 
+      " kWh total in ",
+      ZIPCODE
+    ),
+    highlightOptions = highlightOptions(
+      weight = 2,
+      opacity = 1
+    )
+  ) %>% 
+  addLegend(
+    data = pge_20_res_elec,
+    pal = res_pal,
+    values = ~TOTALKWH,
+    title = "Total Residential<br>kWh, 2020"
+  )
+```
+```{r}
+library(tidyverse)
+library(sf)
+library(tigris)
+library(leaflet)
+library(censusapi)
+
+Sys.setenv(CENSUS_KEY="c8aa67e4086b4b5ce3a8717f59faa9a28f611dab")
+
+acs_vars_2019_5yr <-
+  listCensusMetadata(
+    name = "2019/acs/acs5",
+    type = "variables"
+  )
+```
+
+```{r}
+smc_sexbyage <-  #sex by age data from Census
+  getCensus(
+    name = "acs/acs5",
+    vintage = 2019,
+    region = "block group:*", 
+    regionin = "state:06+county:081",
+    vars = "group(B01001)"
+  ) %>%
+  mutate(
+    cbg =
+      paste0(state,county,tract,block_group)
+  ) %>% 
+  select(!c(GEO_ID,state,county,tract,block_group,NAME) & !ends_with(c("EA","MA","M"))) %>%
+  pivot_longer(
+    ends_with("E"),
+    names_to = "variable",
+    values_to = "estimate"
+  ) %>%
+  left_join(
+    acs_vars_2019_5yr %>% 
+      select(name, label), 
+    by = c("variable" = "name")
+  ) %>% 
+  select(-variable) %>% 
+  separate(
+    label,
+    into = c(NA,NA,"sex","age"),
+    sep = "!!"
+  ) %>% 
+  filter(!is.na(age))
+```
+
+```{r}
+smc_elderly <-  #find percent elderly data
+  smc_sexbyage %>% 
+  mutate(
+    elderly = 
+      ifelse(
+        age %in% c(
+          "65 and 66 years",
+          "67 to 69 years",
+          "70 to 74 years",
+          "75 to 79 years",
+          "80 to 84 years",
+          "85 years and over"
+        ),
+        estimate,
+        NA
+      )
+  ) %>% 
+  group_by(cbg) %>% 
+  summarize(
+    elderly = sum(elderly, na.rm = T),
+    total_pop = sum(estimate, na.rm = T)
+  ) %>% 
+  mutate(
+    percent_elderly = elderly/total_pop*100
+  ) %>% 
+  filter(!is.na(percent_elderly))
+```
+
+
+```{r}
+
+```
+
