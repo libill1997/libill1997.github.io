@@ -274,7 +274,7 @@ At this point, the dataframe has both GEOID20 and GEOID10 IDs. The GEOID10 IDs t
 ```{r}
 place_blocks_2020_reshaped <- place_blocks_2020_intersect %>%
   st_drop_geometry() %>% 
-  group_by(GEOID20,pop_2020) %>% 
+  group_by(GEOID20,pop_2020,leftover_area) %>% 
   summarize(
     pop_2020 = sum(pop_2020, na.rm=T) %>% round()
   )
@@ -285,15 +285,16 @@ projection <- "+proj=utm +zone=10 +ellps=GRS80 +datum=NAD83 +units=ft +no_defs"
 place_pop_2010_2020 <- place_blocks_2010 %>% 
   left_join(place_blocks_2020_reshaped, by=c("GEOID10"="GEOID20")) %>% 
   mutate(
-    absolute_pop = (pop_2020 - pop_2010) / as.numeric(pop_2020,pop_2010) * 5280^2 / 1000
+    absolute_pop = (pop_2020 - pop_2010) / as.numeric(leftover_area) * 5280^2 / 1000
   )
 ```
 The SF Chronicle example has a color palette that goes from red negative values to green negative values, with white in the center. To get our color pallete to be symmetrical across 0, we need the minimum and maximum bounds to be equidistant from 0. For our absolute change, let's try stretching one bound to meet the other. Using https://www.nceas.ucsb.edu/sites/default/files/2020-04/colorPaletteCheatsheet.pdf, we can identify "PiYG" as a satisfactory palette for our purposes.
 ```{r}
-max <- max(abs(-30000), abs(30000))
+library(colorspace)
+max <- max(abs(-4000), abs(4000))
 absolute_pal <- colorNumeric(
-  palette = "Blues",
-  domain =  c(-30000,30000)
+  palette = "Dark2",
+  domain =  c(-4000,4000)
 )
 ```
 Lastly, map.
@@ -301,11 +302,8 @@ Lastly, map.
 leaflet(place_pop_2010_2020) %>% 
   addProviderTiles(provider = providers$CartoDB.Positron) %>% 
   addPolygons(
-    fillColor = ~(absolute_pop),
+    fillColor = ~absolute_pal(absolute_pop),
     label = ~round(absolute_pop),
-     highlightOptions = highlightOptions(
-      weight = 2,
-      opacity = 1),
     color = "white",
     opacity = 0.5,
     fillOpacity = 0.75,
@@ -313,12 +311,14 @@ leaflet(place_pop_2010_2020) %>%
   ) %>% 
   addLegend(
     pal = absolute_pal,
-    value = c(-30000,30000),
+    value = c(-4000,4000),
     title = "Absolute Change in Density 2010 and 2020 "
   )
 ```
 
-Findings: Unsure yet, still need some help to complete. 
+
+Findings: Along the railroads, there is a decrease in population from 2010 to 2020. The emigration is likely due to the noise from the trains. There are three sectors that are in dark pink color which represent a greater decrease in absolute change in population density. There are a few green sectors that are small in size experience an increase in population density from 2010 to 2020. It is likely that these sectors are relatively far away from railroads and designated as residential zones. The gray sectors represent no change in population density, because these zones are either recreational parks or public service buildings like schools. 
+
 
 
 
