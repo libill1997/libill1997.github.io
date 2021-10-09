@@ -2,7 +2,9 @@
 title: "CEE118X_HW3"
 author: "Bill Li"
 date: "10/6/2021"
-output: html_document
+output:
+  html_document: default
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -11,7 +13,7 @@ knitr::opts_chunk$set(echo = F, warning=F, message = F) #warning messages and co
 
 ```{r}
 
-
+library(tidyverse)
 pums_hca_2018_5yr <- read_csv("psam_h06.csv")
 
 ```
@@ -53,10 +55,27 @@ pums_2019_1yr <- getCensus(
 ca_pumas <-
   pumas("CA", cb = T, progress_bar = F)
 
+bay_county_names <-
+  c(
+    "Alameda",
+    "Contra Costa",
+    "Marin",
+    "Napa",
+    "San Francisco",
+    "San Mateo",
+    "Santa Clara",
+    "Solano",
+    "Sonoma"
+  )
+
+bay_counties <-
+  counties("CA", cb = T, progress_bar = F) %>%
+  filter(NAME %in% bay_county_names)
+
 bay_pumas <-
   ca_pumas %>% 
   st_centroid() %>% 
-  .[bay_counties, ] %>% 
+  .[bay_counties,] %>% 
   st_drop_geometry() %>% 
   left_join(ca_pumas %>% select(GEOID10)) %>% 
   st_as_sf()
@@ -69,7 +88,6 @@ bay_pums <-
   filter(PUMA %in% bay_pumas$PUMACE10)
 ```
 
-NEED TO TROUBLE SHOOT
 
 ```{r}
 bay_pums_example <-
