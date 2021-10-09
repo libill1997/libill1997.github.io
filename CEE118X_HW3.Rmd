@@ -1,0 +1,150 @@
+---
+title: "CEE118X_HW3"
+author: "Bill Li"
+date: "10/6/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, warning=F, message = F) #warning messages and codes do not show
+```
+
+```{r}
+
+
+pums_hca_2018_5yr <- read_csv("psam_h06.csv")
+
+```
+
+
+Dictionary: https://www2.census.gov/programs-surveys/acs/tech_docs/pums/data_dict/PUMS_Data_Dictionary_2019.txt
+```{r}
+library(censusapi)
+library(tidyverse)
+library(tigris)
+library(sf)
+library(leaflet)
+
+Sys.setenv(CENSUS_KEY="c8aa67e4086b4b5ce3a8717f59faa9a28f611dab")
+
+pums_2019_1yr <- getCensus(
+  name = "acs/acs1/pums",
+  vintage = 2019,
+  region = "public use microdata area:*", 
+  regionin = "state:06",
+  vars = c(
+    "SERIALNO",
+    "SPORDER",
+    "PWGTP",
+    "WGTP",
+    "NP",
+    "HHLANP",
+    "HINCP",
+    "TEN",
+    "SCHG",
+    "HICOV",
+    "KIT"
+  )
+)
+
+```
+
+```{r}
+ca_pumas <-
+  pumas("CA", cb = T, progress_bar = F)
+
+bay_pumas <-
+  ca_pumas %>% 
+  st_centroid() %>% 
+  .[bay_counties, ] %>% 
+  st_drop_geometry() %>% 
+  left_join(ca_pumas %>% select(GEOID10)) %>% 
+  st_as_sf()
+
+bay_pums <-
+  pums_2019_1yr %>% 
+  mutate(
+    PUMA = str_pad(public_use_microdata_area,5,"left","0")
+  ) %>% 
+  filter(PUMA %in% bay_pumas$PUMACE10)
+```
+
+NEED TO TROUBLE SHOOT
+
+```{r}
+bay_pums_example <-
+  bay_pums %>% 
+  filter(!duplicated(SERIALNO)) %>% 
+  mutate(
+    WGTP = as.numeric(WGTP),
+    heat_wave = ifelse(
+        (SCHG >=11) &
+        (HICOV ==2),
+        WGTP,
+        0
+    )
+      )%>% 
+  group_by(PUMA) %>% 
+  summarize(
+    perc_heat_wave =
+      sum(heat_wave, na.rm =T)/sum(WGTP, na.rm = T)*100
+  ) %>% 
+  left_join(
+    bay_pumas %>% 
+      select(PUMACE10),
+    by = c("PUMA" = "PUMACE10")
+  ) %>% 
+  st_as_sf()
+```
+
+```{r}
+pums_pal <- colorNumeric(
+  palette = "viridis",
+  domain = bay_pums_example$perc_heat_wave
+)
+
+leaflet() %>%
+  addTiles() %>% 
+  addPolygons(
+    data = bay_pums_example,
+    fillColor = ~pums_pal(perc_heat_wave),
+    color = "white",
+    opacity = 0.5,
+    fillOpacity = 0.5,
+    weight = 1,
+    label = ~paste0(
+      round(perc_heat_wave), 
+      "% Population vulnerable to heat waves"
+    ),
+    highlightOptions = highlightOptions(
+      weight = 2,
+      opacity = 1
+    )
+  ) %>% 
+  addLegend(
+    data = bay_pums_example,
+    pal = pums_pal,
+    values = ~perc_heat_wave,
+    title = "% Population<br>(grade 9-12, college undergraduate and graduate)<br> vulnerable to heat waves"
+  )
+```
+```{r}
+sum_pop <-
+  bay_pums %>% 
+  filter(!duplicated(SERIALNO)) %>% 
+  mutate(
+    WGTP = as.numeric(WGTP),
+    heat_wave = ifelse(
+        (SCHG >=11) &
+        (HICOV ==2),
+        WGTP,
+        0
+    )
+  )
+sum(sum_pop$heat_wave)
+
+```
+
+
+
+Answer:In this assignment, I selected grade 9 to 12 students, college undergraduates, and graduate students who do not have health insurance as heat wave vulnerable population. These people are required to physically attend school and to expend a lot of energy. If they do not have health insurance, they are unlikely to seek any medical treatment for heat related illness. The total number of people with the vulnerability characteristics is 6725. Silver Creek has the highest percents of defined population that are vulnerable to heat waves. 
