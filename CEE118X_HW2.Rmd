@@ -44,8 +44,8 @@ ca_cities <- places("06", cb = T, progress_bar = FALSE) #use places() to filter 
 ```
 
 ```{r}
-bay_cities <- ca_cities[bay_counties, ] #only sees the bay area counties
-
+bay_cities <- ca_cities[bay_counties, ] 
+  
 mapview(bay_counties, alpha.regions = 0) + mapview(bay_cities)
 ```
 
@@ -291,10 +291,10 @@ place_pop_2010_2020 <- place_blocks_2010 %>%
 The SF Chronicle example has a color palette that goes from red negative values to green negative values, with white in the center. To get our color pallete to be symmetrical across 0, we need the minimum and maximum bounds to be equidistant from 0. For our absolute change, let's try stretching one bound to meet the other. Using https://www.nceas.ucsb.edu/sites/default/files/2020-04/colorPaletteCheatsheet.pdf, we can identify "PiYG" as a satisfactory palette for our purposes.
 ```{r}
 library(colorspace)
-max <- max(abs(-4000), abs(4000))
+max <- max(abs(-2000), abs(2000))
 absolute_pal <- colorNumeric(
-  palette = "Dark2",
-  domain =  c(-4000,4000)
+  palette = "PiYG",
+  domain =  c(-2000,2000)
 )
 ```
 Lastly, map.
@@ -311,7 +311,7 @@ leaflet(place_pop_2010_2020) %>%
   ) %>% 
   addLegend(
     pal = absolute_pal,
-    value = c(-4000,4000),
+    value = c(-2000,2000),
     title = "Absolute Change in Density 2010 and 2020 "
   )
 ```
