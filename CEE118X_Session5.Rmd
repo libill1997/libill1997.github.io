@@ -1,0 +1,124 @@
+---
+title: "CEE118X_Session5"
+author: "Bill Li"
+date: "10/12/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, warning=F, message = F) #warning messages and codes do not show
+```
+
+Use PUMS data to measure individual response(access to AC...)
+
+
+```{r}
+library(tidyverse)
+library(censusapi) #we are using census data
+Sys.setenv(CENSUS_KEY="c8aa67e4086b4b5ce3a8717f59faa9a28f611dab")
+```
+
+
+FOR WHITE ONLY Code
+#Income and race
+#  datacensus.com to find household income b19001a=white only
+bay_income_race_2019<-getCensus(
+  name = "acs/acs5", #five year survey
+  vintage = "2019",
+  region = "county: 001,013,041,055,075, 081, 085, 095, 097", #all SF counties
+  regionin = "state:06", #defining the state
+  vars = "group(B19001A)" #income by white along household(represent by "A")
+)%>%
+  select(ends_with("E") & -c(state,NAME)) %>% # I only want columns that ends with "E" also get rid of state and NAME column; We want bay area total income from white. -c removes the field of state and NAME. 
+  summarize_all(sum) %>%# we sum up all the columns; It's gotta be numbers
+  #we want to pivot the data into multiple rows and one column; make the dataset verticle
+  pivot_longer(
+    everything(),#pivot the entire data, everything will be transformed
+    names_to = "name",
+    values_to = "estimate" #household counts in this case. 
+  )%>%
+  # Use data dictionary acs_vars_2019_5yr to join names from dictionary with our data
+  left_join(
+    acs_vars_2019_5yr %>% 
+      select(name,label) #we only want name and label in the dataset. 
+  )%>%
+  separate( #separate, we don't need Estimate!!Total:!!
+    label, #it's called label from acs_vars_2019_5yr
+    into = c(NA, NA, "income"),
+    sep = "!!"  #we recognize the third one(after Total:!!) is income
+  )%>%
+  select(-name)%>% # at this point we don't want name anymore
+  # The first row is sum of the total households
+  filter(!is.na(income))%>% # remove the empty field in "income" column. NEED TO ADD ! to remove empty field!!!
+  mutate(
+    race= "white alone" #assigning another column of white alone dataset. 
+  )
+#At this point we got just one race with income information 
+
+
+USING For Loop:
+for (x in LETTERS[1:7]){ #R supplies Letter[] , Letter[1] represents "A"
+  LETTERS[x] #Will refer back to LETTERS[1:7]
+  
+  #Eventually,
+  rbind(full_dataset) which combines all data
+  
+
+```{r} 
+#PIPELINE METHOD: (VERY GOOD METHOD)
+
+race_categories <- c(
+  "White alone",
+  "Black or African American alone",
+  "American Indian and Alaska Native alone",
+  "Asian alone",
+  "Native Hawaiian and Other Pacific Islander alone",
+  "Some Other Race alone",
+  "Two or more Races"
+) #Create this for the ease of mutate below, so now race_categories[1] refers to white alone. 
+
+bay_income_race_2019<-
+  1:7 %>%
+  map_dfr(function(x){
+    getCensus(
+  name = "acs/acs5", #five year survey
+  vintage = "2019",
+  region = "county: 001,013,041,055,075, 081, 085, 095, 097", #all SF counties
+  regionin = "state:06", #defining the state
+  vars = paste0("group(B19001",LETTERS[x],") ")#income by white along household(represent by "A")
+)%>%
+  select(ends_with("E") & -c(state,NAME)) %>% # I only want columns that ends with "E" also get rid of state and NAME column; We want bay area total income from white. -c removes the field of state and NAME. 
+  summarize_all(sum) %>%# we sum up all the columns; It's gotta be numbers
+  #we want to pivot the data into multiple rows and one column; make the dataset verticle
+  pivot_longer(
+    everything(),#pivot the entire data, everything will be transformed
+    names_to = "name",
+    values_to = "estimate" #household counts in this case. 
+  )%>%
+  # Use data dictionary acs_vars_2019_5yr to join names from dictionary with our data
+  left_join(
+    acs_vars_2019_5yr %>% 
+      select(name,label) #we only want name and label in the dataset. 
+  )%>%
+  separate( #separate, we don't need Estimate!!Total:!!
+    label, #it's called label from acs_vars_2019_5yr
+    into = c(NA, NA, "income"),
+    sep = "!!"  #we recognize the third one(after Total:!!) is income
+  )%>%
+  select(-name)%>% # at this point we don't want name anymore
+  # The first row is sum of the total households
+  filter(!is.na(income))%>% # remove the empty field in "income" column. NEED TO ADD ! to remove empty field!!!
+  mutate(
+    race= race_categories[x] # use x to refer back to 1:7
+    #you can put your code here
+  )
+  }
+)
+#automatically dataframe rbind(). Feed 1:7 into map_dft function and 
+
+```
+
+```{r}
+
+```
+

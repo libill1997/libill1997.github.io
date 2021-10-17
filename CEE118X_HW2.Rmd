@@ -260,8 +260,8 @@ place_blocks_2020_intersect <- place_blocks_2020 %>%
   st_transform(26910) %>% 
   mutate(original_area = st_area(.)) %>% 
   st_intersection(
-    blocks_2020 %>%
-      select(GEOID20) %>% 
+    blocks_2010 %>%
+      select(GEOID10) %>% 
       st_transform(26910)
   ) %>% 
   mutate(
