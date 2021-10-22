@@ -1,0 +1,62 @@
+---
+title: "CEE118X_Session6"
+author: "Bill Li"
+date: "10/21/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, warning=F, message = F) #warning messages and codes do not show
+```
+
+
+```{r}
+library(tidyverse)
+library(censusapi)
+library(sf)
+library(mapview)
+library(tigris)
+library(mapview)
+library(readxl)
+
+#load calenviroscreen data
+ces4<- read_excel("calenviroscreen40resultsdatadictionary_F_2021.xlsx")
+
+colnames(ces4) #shows the column names in the console
+
+ces4_clean<- ces4%>%
+  dplyr::select(!ends_with("Pctl")) #remove all the columns name end with Pctl 
+
+sum(is.na(ces4_clean$Poverty)) #output truth or flase; sum will sum up the truth which is 75 truths in this case. 
+
+ces4_clean %>% 
+  .$Poverty #get the data just poverty
+
+#another way to see the data of just poverty is:
+ces4_clean%>%
+  pull(Poverty)%>%
+  is.na()%>%
+  sum()  # pipeline method of getting rows with values 
+
+ca_tracts<- tracts("CA")# tracts() is author function that pulls all california spacial data
+
+ces4_map<- ces4_clean%>%
+  left_join(
+    ca_tracts%>%  #join California spacial dataset 
+    select(GEOID) %>% # we specify we want to join GEOID 
+    mutate(GEOID= as.numeric(GEOID)), #we convert GEOID from characters to numeric value
+    by = c("Census Tract" = "GEOID") #join ces4_clean "census tract" with geometry data from ca tract
+            )%>% #This code produce ces4_clean with addition of spatial component column
+    st_as_sf() # make it a spacial
+
+mapview(ces4_map, zcol = "Asthma") # plot all the Asthma in map 
+
+# You can use:  class(ces4_clean$`Census Tract`) to see whether the column is numeric data
+
+#You use:  class(ca_tracts$GEOID)  to find out that GEOID is actually a character rather than numeric
+
+# you can use the function:   as.numeric() to go from characters to number
+# use:  str_pad(2, "left", 0) to go from numeric to characters
+
+```
+

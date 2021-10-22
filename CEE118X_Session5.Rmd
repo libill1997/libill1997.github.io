@@ -20,6 +20,7 @@ Sys.setenv(CENSUS_KEY="c8aa67e4086b4b5ce3a8717f59faa9a28f611dab")
 
 
 FOR WHITE ONLY Code
+```{r}
 #Income and race
 #  datacensus.com to find household income b19001a=white only
 bay_income_race_2019<-getCensus(
@@ -54,8 +55,7 @@ bay_income_race_2019<-getCensus(
     race= "white alone" #assigning another column of white alone dataset. 
   )
 #At this point we got just one race with income information 
-
-
+```
 USING For Loop:
 for (x in LETTERS[1:7]){ #R supplies Letter[] , Letter[1] represents "A"
   LETTERS[x] #Will refer back to LETTERS[1:7]
@@ -64,7 +64,7 @@ for (x in LETTERS[1:7]){ #R supplies Letter[] , Letter[1] represents "A"
   rbind(full_dataset) which combines all data
   
 
-```{r} 
+```{r}
 #PIPELINE METHOD: (VERY GOOD METHOD)
 
 race_categories <- c(
@@ -79,8 +79,7 @@ race_categories <- c(
 
 bay_income_race_2019<-
   1:7 %>%
-  map_dfr(function(x){
-    getCensus(
+  map_dfr(function(x){getCensus(
   name = "acs/acs5", #five year survey
   vintage = "2019",
   region = "county: 001,013,041,055,075, 081, 085, 095, 097", #all SF counties
@@ -112,13 +111,8 @@ bay_income_race_2019<-
     race= race_categories[x] # use x to refer back to 1:7
     #you can put your code here
   )
-  }
-)
-#automatically dataframe rbind(). Feed 1:7 into map_dft function and 
-
+}
+)#automatically dataframe rbind(). Feed 1:7 into map_dft function and 
 ```
 
-```{r}
-
-```
 

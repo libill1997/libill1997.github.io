@@ -105,8 +105,8 @@ bay_edu_race_2019<-
     sep = "!!"  #we re cognize the third one(after Total:!!) is income
   )%>%
   select(-name)%>%# at this point we don't want name anymore
-  filter(!is.na(education))%>%
-  group_by(education)%>%# got rid of empty field "NA"
+  filter(!is.na(education))%>%# got rid of empty field "NA"
+  group_by(education)%>%
   summarize(estimate = sum(estimate, na.rm=T))%>%
   mutate(
     race= race_categories[x] # use x to refer back to 1:7
@@ -179,3 +179,206 @@ bay_edu_race_2019 %>%
 
 “Is there disproportionate education attainment by race in the county?”
 Answer: Based on the data from San Mateo County, there is a disproportionate education attainment by race for individuals 25 years or older. In white race population, there is a significant more proportion of individuals that have some college or bachelor's degree than lss than high school diploma. When you compare white alone to black or African American alone, there is a disproportionate education attainment. The proportion of black individuals holding bachelor's degree or higher is far less than high school graduate. The situation is the opposite in white individuals. American Indian and Alaska Native alone does not face disproportionate education attainment. In Asian alone population, there is a greater proportion of individuals that have bachelor's degree or higher than the three other educational categories. 
+
+```{r}
+acs_vars_2019_1yr <-
+  listCensusMetadata(
+    name = "2019/acs/acs1",
+    type = "variables"
+  ) #Load our dictionary 
+```
+
+```{r}
+race_cate <- c(
+  "White alone",
+  "Black or African American alone",
+  "American Indian and Alaska Native alone",
+  "Asian alone",
+  "Native Hawaiian and Other Pacific Islander alone",
+  "Some Other Race alone",
+  "Two or more Races",
+  "White alone, not hispanic",
+  "Hispanic or Latino"
+) # 1~9
+```
+
+
+```{r}
+#B15002I = hispanic or Latino
+#B15002H = white alone, not hispanic
+#B15002B~G = 
+
+bay_total_2019<-
+  1:7 %>%
+  map_dfr(function(x){getCensus(
+   name = "acs/acs1", #five year survey
+  vintage = "2019",
+  region = "county: 081",#081= San Mateo  #all SF counties: 001,013,041,055,075, 081, 085, 095, 097
+  regionin = "state:06", #defining the state
+  vars = paste0("group(B15002", LETTERS[x],")")# SEX BY EDUCATIONAL ATTAINMENT FOR THE POPULATION 25 YEARS AND OVER (WHITE ALONE)
+)%>%
+  select(ends_with("E") & -c(state,NAME))%>% # I only want columns that ends with "E" also get rid of state and NAME column; We want bay area total income from white. -c removes the field of state and NAME. 
+  summarize_all(sum) %>%# we sum up all the columns; It's gotta be numbers
+  #we want to pivot the data into multiple rows and one column; make the dataset verticle
+ pivot_longer(
+    everything(),#pivot the entire data, everything will be transformed
+    names_to = "name",
+    values_to = "estimate" #household counts in this case. 
+  )%>%
+  # Use data dictionary acs_vars_2019_5yr to join names from dictionary with our data
+  left_join(
+    acs_vars_2019_1yr %>% 
+      select(name,label) #we only want "name" and "label" in the dataset. 
+    )%>%
+  separate( #separate, we don't need Estimate!!Total:!!
+    label, #it's called label from acs_vars_2019_5yr
+    into = c(NA, NA, NA,"education"),
+    sep = "!!"  #we re cognize the third one(after Total:!!) is income
+  )%>%
+  select(-name)%>%
+  filter(!is.na(estimate))%>% # at this point we don't want name anymore
+  filter(!is.na(education))%>%# got rid of empty field "NA"
+  group_by(education)%>% 
+  summarize(estimate = sum(estimate, na.rm=T)) #pointless collapse at this point
+  }
+)
+
+bay_total_2019<-
+  bay_total_2019%>%
+  group_by(education)%>% 
+  summarize(estimate = sum(estimate)) #You can start a different chunk and collapse with the same function groupby and summarize.Now we have the total population with different educational level. 
+```
+
+
+```{r}
+bay_latinx<- getCensus(
+   name = "acs/acs1", #five year survey
+  vintage = "2019",
+  region = "county: 081",#081= San Mateo  #all SF counties: 001,013,041,055,075, 081, 085, 095, 097
+  regionin = "state:06", #defining the state
+  vars = paste0("group(B15002I)")# SEX BY EDUCATIONAL ATTAINMENT FOR THE POPULATION 25 YEARS AND OVER (WHITE ALONE)
+)%>%
+  select(ends_with("E") & -c(state,NAME))%>% # I only want columns that ends with "E" also get rid of state and NAME column; We want bay area total income from white. -c removes the field of state and NAME. 
+  summarize_all(sum) %>%# we sum up all the columns; It's gotta be numbers
+  #we want to pivot the data into multiple rows and one column; make the dataset verticle
+ pivot_longer(
+    everything(),#pivot the entire data, everything will be transformed
+    names_to = "name",
+    values_to = "estimate" #household counts in this case. 
+  )%>%
+  # Use data dictionary acs_vars_2019_5yr to join names from dictionary with our data
+  left_join(
+    acs_vars_2019_1yr %>% 
+      select(name,label) #we only want "name" and "label" in the dataset. 
+    )%>%
+  separate( #separate, we don't need Estimate!!Total:!!
+    label, #it's called label from acs_vars_2019_5yr
+    into = c(NA, NA, NA,"education"),
+    sep = "!!"  #we re cognize the third one(after Total:!!) is income
+  )%>%
+  select(-name)%>%
+  filter(estimate>0)%>% # at this point we don't want name anymore
+  filter(!is.na(education))%>%# got rid of empty field "NA"
+  group_by(education)%>% 
+  summarize(estimate = sum(estimate, na.rm=T))%>%  #Get rid stacking rows
+  mutate(
+    ethnicity= "Latinx" 
+  )
+  
+  
+```
+casewhen function  !!!!!
+
+
+```{r}
+bay_white_nolatinx<- getCensus(
+   name = "acs/acs1", #five year survey
+  vintage = "2019",
+  region = "county: 081",#081= San Mateo  #all SF counties: 001,013,041,055,075, 081, 085, 095, 097
+  regionin = "state:06", #defining the state
+  vars = paste0("group(B15002H)")# SEX BY EDUCATIONAL ATTAINMENT FOR THE POPULATION 25 YEARS AND OVER (WHITE ALONE)
+)%>%
+  select(ends_with("E") & -c(state,NAME))%>% # I only want columns that ends with "E" also get rid of state and NAME column; We want bay area total income from white. -c removes the field of state and NAME. 
+  summarize_all(sum) %>%# we sum up all the columns; It's gotta be numbers
+  #we want to pivot the data into multiple rows and one column; make the dataset verticle
+ pivot_longer(
+    everything(),#pivot the entire data, everything will be transformed
+    names_to = "name",
+    values_to = "estimate" #household counts in this case. 
+  )%>%
+  # Use data dictionary acs_vars_2019_5yr to join names from dictionary with our data
+  left_join(
+    acs_vars_2019_1yr %>% 
+      select(name,label) #we only want "name" and "label" in the dataset. 
+    )%>%
+  separate( #separate, we don't need Estimate!!Total:!!
+    label, #it's called label from acs_vars_2019_5yr
+    into = c(NA, NA, NA,"education"),
+    sep = "!!"  #we re cognize the third one(after Total:!!) is income
+  )%>%
+  select(-name)%>%
+  filter(estimate>0)%>% # at this point we don't want name anymore
+  filter(!is.na(education))%>%# got rid of empty field "NA"
+  group_by(education)%>% 
+  summarize(estimate = sum(estimate, na.rm=T))%>%  #Get rid stacking rows
+  mutate(
+    ethnicity= "White, not Latinx" 
+  )
+```
+```{r}
+bay_no_latinx<-bay_total_2019%>%
+  mutate(
+    estimate= 
+      bay_total_2019$estimate-
+      bay_latinx$estimate -
+      bay_white_nolatinx$estimate
+  )%>%
+  mutate(
+    ethnicity= "Not White, not Latinx"
+  )
+```
+
+
+
+
+```{r}
+bay_65<- bay_white_nolatinx%>%
+  rbind(bay_latinx)%>%
+  rbind(bay_no_latinx)
+
+```
+
+```{r}
+bay_65 %>% 
+  group_by(education, ethnicity) %>% 
+  summarize(estimate = sum(estimate)) %>% 
+  ggplot() +
+  geom_bar(
+    aes(
+      x = education %>% factor(levels = rev(unique(bay_65$education))),
+      y = estimate,
+      fill = ethnicity %>% factor(levels = rev(unique(bay_65$ethnicity)))
+    ),
+    stat = "identity",
+    position = "fill"
+  ) +
+  labs(
+    x = "Education",
+    y = "Proportion of Individuals 25 years or older",
+    title = "San Mateo County education attainment(fill)",
+    fill = "Race of Individual"
+  ) +
+  coord_flip() +
+  theme(
+    legend.position = "bottom",
+    legend.direction = "vertical"
+  )  +
+  guides(
+    fill = guide_legend(
+      reverse = T
+    )
+  )
+```
+
+Answer: From the analysis above, we can see that Latinx population experienced a disproportionate education attainment comparing to White population. There is a significant proportional difference in Graduate or professional degree and Less than 9th grade categorie. Latinx constitutes a majority of Less than 9th grade education attainment whereas White, not Latinx constitutes a majority of graduate or professiona degree. 
+
