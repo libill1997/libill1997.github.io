@@ -1,0 +1,299 @@
+---
+title: "CEE118X_HW5"
+author: "Bill Li"
+date: "10/23/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, warning=F, message = F) #warning messages and codes do not show
+```
+
+```{r}
+library(tidyverse)
+library(censusapi)
+library(sf)
+library(mapview)
+library(tigris)
+library(mapview)
+library(readxl)
+library(leaflet)
+
+#load calenviroscreen data
+ces4<- read_excel("calenviroscreen40resultsdatadictionary_F_2021.xlsx")
+
+
+ces4_clean<- ces4%>%
+  dplyr::select(!ends_with("Pctl")) #remove all the columns name end with Pctl 
+
+#another way to see the data of just poverty is:
+ces4_clean%>%
+  pull(Poverty)%>%
+  is.na()%>%
+  sum()  # pipeline method of getting rows with values 
+
+ca_tracts<- tracts("CA")# tracts() is author function that pulls all california spacial data
+
+```
+
+
+```{r}
+ces4_map<- ces4_clean%>%
+  select(`Census Tract`,`Total Population`, `California County`,
+            `Approximate Location`,Longitude,Latitude,PM2.5, Asthma)%>%
+  filter(`California County`%in% c("Santa Clara") )%>%
+  left_join(
+    ca_tracts%>%  #join California spacial dataset 
+    select(GEOID) %>% # we specify we want to join by GEOID 
+    mutate(GEOID= as.numeric(GEOID)), #we convert GEOID from characters to numeric value
+    by = c("Census Tract" = "GEOID") #join ces4_clean "census tract" with geometry data from ca tract
+            )%>% #This code produce ces4_clean with addition of spatial component column
+    st_as_sf() # make it a spacial
+
+```
+
+
+#mapview(ces4_map, zcol = "Asthma") # plot all the Asthma in map 
+
+# You can use:  class(ces4_clean$`Census Tract`) to see whether the column is numeric data
+#You use:  class(ca_tracts$GEOID)  to find out that GEOID is actually a character rather than numeric
+# you can use the function:   as.numeric() to go from characters to number
+# use:  str_pad(2, "left", 0) to go from numeric to characters
+
+
+
+```{r}
+color1 <- colorNumeric(
+  palette = "Blues",
+  domain = 
+    ces4_map$Asthma
+)
+
+leaflet() %>% 
+  addProviderTiles(provider = providers$CartoDB.Positron) %>% 
+  addPolygons(
+    data = 
+      ces4_map %>% 
+        st_as_sf(),
+    fillColor = ~color1 (Asthma),
+    color = "white",
+    opacity = 0.5,
+    fillOpacity = 0.75,
+    weight = 1,
+    label = ~paste0(
+      round(Asthma), 
+      "rate"
+    ),
+    highlightOptions = highlightOptions(
+      weight = 2,
+      opacity = 1
+    )
+  ) %>% 
+  addLegend(
+    data = ces4_map,
+    pal = color1,
+    values = ~Asthma,
+    title = "Asthma rate"
+  )
+```
+
+
+
+The map above shows the high Asthma prevalence in California. It is the age-adjusted rate of emergency department visits for asthma. The data came from 2019 American Community Survey. As the color transition from dark purple to yellow, there is a higher rate of emergency visits for asthma. The coast of California has low asthma prevalence. High population density areas, including San Francisco, Los Angeles and San Diego, still face a high asthma prevalence. Central California also experience a relatively high asthma prevalence comparing to the coast. 
+
+
+
+```{r}
+color2 <- colorNumeric(
+  palette = "Blues",
+  domain = 
+    ces4_map$PM2.5
+)
+
+leaflet() %>% 
+  addProviderTiles(provider = providers$CartoDB.Positron) %>% 
+  addPolygons(
+    data = 
+      ces4_map %>% 
+        st_as_sf(),
+    fillColor = ~color2 (PM2.5),
+    color = "white",
+    opacity = 0.5,
+    fillOpacity = 0.75,
+    weight = 1,
+    label = ~paste0(
+      round(PM2.5), 
+      "ug/m3"
+    ),
+    highlightOptions = highlightOptions(
+      weight = 2,
+      opacity = 1
+    )
+  ) %>% 
+  addLegend(
+    data = ces4_map,
+    pal = color2,
+    values = ~PM2.5,
+    title = "PM2.5"
+  )
+```
+
+The map above shows the concentrations of PM2.5 in California. It is the Annual mean PM 2.5 concentrations in the unit of microgram per cubic meters. The data came from 2019 American Community Survey. As the color transition from dark purple to yellow, there is an increasing in PM2.5 concentration. California coast has a relatively low PM2.5 concentration comparing to central California. High population density areas, including Los Angeles and San Diego, experience high PM2.5 concentrations. However, San Francisco doesn't have a high PM2.5 concentration. 
+
+
+```{r}
+ggplot(
+  data = ces4_map,
+  aes(
+      x = PM2.5,
+      y = Asthma
+    )
+) +
+  geom_point() +
+  geom_smooth(method = "lm")
+```
+
+
+Based on the apparent best fit line, the is a slight positive correlation between PM2.5 and Asthma. However, one can also interpret as there is no correlation between PM2.5 and Asthma. 
+
+```{r}
+model <- lm(Asthma ~ PM2.5, ces4_map)  #Y axis first, X axis second. 
+
+summary(model)
+```
+
+According to the chart 
+
+An increase of 1 microgram per cubic meters in PM2.5 is associated with an increase of 1.7228 in the rate of emergency department visit for asthma. The result can vary by 0.1564 in the rate of emergency department visit for asthma. Since our p value (Pr(>t)) is less than 5 percent, we can say that there is a relationship between PM2.5 and Asthma. 
+
+1.491% of the variation in Asthma is explained by the variation in PM2.5.
+
+
+```{r}
+ces4_a<- ces4_map%>%
+  filter(!is.na(PM2.5))%>%
+  filter(!is.na(Asthma))
+```
+
+```{r}
+#slope=1.7228
+#intercept= 34.4917
+
+best_fit_candidate <- 1.7228 * ces4_a$PM2.5 + 34.4517 
+
+residuals <- ces4_a$Asthma - best_fit_candidate
+
+mean(residuals)
+
+```
+
+
+
+```{r}
+plot(density(residuals))
+```
+
+The residual distribution is heavily right skewed which means that our assumption and our model is invalid. The residual distribution needs to be normally distributed for a valid linear model. 
+
+
+```{r}
+ggplot(
+  data = ces4_map,
+  aes(
+      x = PM2.5,
+      y = log(Asthma)
+    )
+) +
+  geom_point() +
+  geom_smooth(method = "lm")
+```
+
+```{r}
+model_log <- lm(log(Asthma) ~ PM2.5, ces4_map)  #Y axis first, X axis second. 
+
+summary(model_log)
+```
+
+According to the chart 
+
+An increase of 1 microgram per cubic meters in PM2.5 is associated with an increase of exp(0.04387) or 1.045 in the rate of emergency department visit for asthma. The result can vary by exp(0.00295) or 1.00295 in the rate of emergency department visit for asthma. Since our p value (Pr(>t)) is less than 5 percent, we can say that there is a correlation between PM2.5 and Asthma. 
+
+2.682% of the variation in Asthma is explained by the variation in PM2.5.
+
+
+```{r}
+#slope=1.045
+#intercept= exp(3.34395) = 28.3308
+ces4_alog<- ces4_a%>%
+  mutate(Asthmalog=
+           log(Asthma))
+
+best_fit_log <- 1.045 * ces4_alog$PM2.5 + 28.3308
+
+residual_log <- ces4_alog$Asthmalog - best_fit_log
+
+mean(residual_log)
+```
+```{r}
+plot(density(residual_log))
+```
+
+
+```{r}
+ces4_map_log<- ces4_alog%>%
+  st_drop_geometry%>%#need to drop geometry first because we perfomed 
+  mutate(residuals=
+  Asthmalog- (1.045 * PM2.5 + 28.3308)
+  )%>%
+  left_join(
+    ca_tracts%>%  #join California spacial dataset 
+    select(GEOID) %>% # we specify we want to join by GEOID 
+    mutate(GEOID= as.numeric(GEOID)), #we convert GEOID from characters to numeric value
+    by = c("Census Tract" = "GEOID") #join ces4_clean "census tract" with geometry data from ca tract
+            )%>% #This code produce ces4_clean with addition of spatial component column
+    st_as_sf() # make it a spacial
+
+```
+
+```{r}
+color3 <- colorNumeric(
+  palette = "Blues",
+  domain = 
+    ces4_map_log$residuals
+)
+
+leaflet() %>% 
+  addProviderTiles(provider = providers$CartoDB.Positron) %>% 
+  addPolygons(
+    data = 
+      ces4_map_log %>% 
+        st_as_sf(),
+    fillColor = ~color3 (residuals),
+    color = "white",
+    opacity = 0.5,
+    fillOpacity = 0.75,
+    weight = 1,
+    label = ~paste0(
+      round(residuals), 
+      "residuals"
+    ),
+    highlightOptions = highlightOptions(
+      weight = 2,
+      opacity = 1
+    )
+  ) %>% 
+  addLegend(
+    data = ces4_map_log,
+    pal = color3,
+    values = ~residuals,
+    title = "Residuals"
+  )
+```
+
+```{r}
+min(ces4_map_log$residuals)
+```
+
+
+***Before switching to just Santa Clara County. 
+The location with the most negative residual number is in Kern County, Bakersfield area. Negative value means that the actual value was less than the predicted value. In Bakersfield, our predicted association value between PM2.5 and hospital visits due to asthma is too high. We have an over-estimation of the relationship between PM2.5 and Asthma in the regions with negative residuals. 

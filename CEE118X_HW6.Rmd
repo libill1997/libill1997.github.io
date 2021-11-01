@@ -1,0 +1,223 @@
+---
+title: "CEE118X_HW6"
+author: "Bill Li"
+date: "10/26/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, warning=F, message = F) #warning messages and codes do not show
+```
+
+```{r}
+library(censusapi)
+library(tidyverse)
+library(tigris)
+library(sf)
+library(leaflet)
+
+Sys.setenv(CENSUS_KEY="c8aa67e4086b4b5ce3a8717f59faa9a28f611dab")
+```
+
+```{r}
+Sys.setenv(CENSUS_KEY="c8aa67e4086b4b5ce3a8717f59faa9a28f611dab")
+pums_2019_1yr <- getCensus(
+  name = "acs/acs1/pums",
+  vintage = 2019,
+  region = "public use microdata area:*", 
+  regionin = "state:06",
+  vars = c(
+    "SERIALNO",
+    "SPORDER",
+    "PWGTP",
+    "WGTP",
+    "AGEP",
+    "YBL", 
+    "BLD", 
+    "TEN", 
+    "MV", 
+    "HINCP", 
+    "AGEP"
+  )
+)
+```
+
+```{r}
+ca_pumas <-
+  pumas("CA", cb = T, progress_bar = F)
+
+ca_pumas <-
+  pumas("CA", cb = T, progress_bar = F)
+
+sf_boundary <-
+  counties("CA", cb = T, progress_bar = F) %>%
+  filter(NAME == "San Francisco") #we only want SF
+
+sf_pumas <-
+  ca_pumas %>% 
+  st_centroid() %>% 
+  .[sf_boundary, ] %>% 
+  st_drop_geometry() %>% 
+  left_join(ca_pumas %>% select(GEOID10)) %>% 
+  st_as_sf()
+```
+```{r}
+sf_pums<-pums_2019_1yr %>% 
+  mutate(
+    PUMA = str_pad(public_use_microdata_area,5,"left","0")
+  ) %>% 
+  filter(PUMA %in% sf_pumas$PUMACE10) 
+```
+
+```{r}
+sf_pums_clean<- sf_pums%>%
+  mutate(
+    YBL= as.numeric(YBL),
+    AGEP= as.numeric(AGEP)
+  )%>%
+  filter(YBL %in% as.character(1:3))%>% #built before 1960
+#or  YBL = as.numeric(YBL) %>% filter(YBL %in%  1:3) which is another method
+#how to groupby and summarize with families of less than 6 year old. For the 
+#youngest person in the household, are they 6?
+  arrange(AGEP)%>% #arrange by age which makes the smallest age the first
+  group_by(SERIALNO)%>% #serial number in the sf_pums
+  summarize_all(first)%>%
+  mutate(
+    leadrisk= ifelse(
+      as.numeric(HINCP)<90000 & as.numeric(AGEP)<6,
+      1,
+      0
+    )
+  ) #complete leadrisk
+```
+
+```{r}
+#factor transformation
+sf_p<- sf_pums_clean%>%
+  mutate(
+    Unit= BLD%>%
+      factor(
+        levels=sf_pums_clean$BLD %>%
+          unique()%>%
+          as.numeric()%>%
+          sort()
+      ))%>%
+  mutate(
+    Tenure= TEN%>%
+      factor(
+        levels=sf_pums_clean$TEN %>%
+          unique()%>%
+          as.numeric()%>%
+          sort()
+      ))%>%
+  mutate(
+    Move= MV%>%
+      factor(
+        levels=sf_pums_clean$MV %>%
+          unique()%>%
+          as.numeric()%>%
+          sort()
+      ))%>%
+  mutate(
+    Microdata= PUMA%>%
+      factor(
+        levels=sf_pums_clean$PUMA %>%
+          unique()%>%
+          sort()
+      )) #complete factor transformation
+```
+
+
+```{r}
+#logit model
+logit_model<- glm(
+  leadrisk ~ Unit+Tenure+Move+Microdata,
+  family= quasibinomial(),
+  data= sf_p
+)
+
+summary(logit_model) #logit model complete
+
+```
+
+```{r}
+predict(logit_model, data.frame(sample_n(sf_p,1)), type="response")
+  
+```
+
+```{r}
+nrow(sf_p)
+#there are 2264 rows of data
+```
+
+```{r}
+Prediction<-predict(logit_model, data.frame(sample_n(sf_p,2264)), type="response")
+#
+sf_final<- sf_p%>%
+  cbind(Prediction)
+
+sf_2by2<- sf_final%>%
+  mutate(
+    leadrisk=ifelse(
+      leadrisk==1,
+      "Positive",
+      "Negative"
+    )
+  )%>%
+  mutate(
+    Prediction=ifelse(
+      Prediction<0.1,
+      "True",
+      "False"
+)
+)%>%
+  group_by(leadrisk,Prediction)%>%
+  summarize(WGTP=sum(as.numeric(WGTP), na.rm=T))
+```
+Based on threshold score along, they will mail out (221569+4258) 225,827 postcards based on threshold score. 4258/22886 or 18.6 percent of the postcards will go to low income household with children. 4258/4409 or 96.6 percent of all at-risk children are likely to be reached. To make sure all postcards will go to at-risk children, we can consider adding a new category in the survey to reflect family's at-risk situation. A new category can make the prediction more stringent and reduce the number of false-positive counts. 
+
+```{r}
+sum(sf_2by2$WGTP)
+```
+
+
+
+
+
+
+#
+sample<- sample(
+  c(TRUE, FALSE),
+  nrow(sf_p),
+  replace=T,
+  prob=c(0.8,0.2)
+)
+train<- sf_p[sample,]
+test<- sf_p[!sample,]
+
+
+
+
+#
+train_design<- svrepdesign(
+  data=train,
+  type="ACS",
+  repweights= 
+
+
+
+sum<-test%>%
+  mutate(
+    leadrisk= ifelse(
+      leadrisk==1,
+      "Yes",
+      "No"
+    )
+  )%>%
+  pull(leadrisk)%>%
+  table(Prediction>0.5)
+
+
+
+
+

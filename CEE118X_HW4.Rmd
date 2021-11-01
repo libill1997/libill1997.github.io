@@ -344,7 +344,21 @@ bay_no_latinx<-bay_total_2019%>%
 ```{r}
 bay_65<- bay_white_nolatinx%>%
   rbind(bay_latinx)%>%
-  rbind(bay_no_latinx)
+  rbind(bay_no_latinx)%>%
+  mutate(
+    education= case_when(
+      education == "9th to 12th grade, no diploma" ~ "Less than high school diploma",
+      education == "Less than 9th grade" ~ "Less than high school diploma",
+      education == "Regular high school diploma" ~ "High school grad",
+      education == "GED or alternative credential" ~ "High school grad",
+      education == "Some college, no degree" ~ "Some college or associate",
+      education == "Associate's degree" ~ "Some college or associate",
+      education == "Bachelor's degree" ~ "Bachelor or higher",
+      education == "Graduate or professional degree" ~ "Bachelor or higher"
+    ))%>%
+  group_by(ethnicity, education)%>%
+  summarize(estimate=
+              sum(estimate, na.rm = T))
 
 ```
 
@@ -366,7 +380,7 @@ bay_65 %>%
     x = "Education",
     y = "Proportion of Individuals 25 years or older",
     title = "San Mateo County education attainment(fill)",
-    fill = "Race of Individual"
+    fill = "Ethnicity of Individual"
   ) +
   coord_flip() +
   theme(
@@ -380,5 +394,5 @@ bay_65 %>%
   )
 ```
 
-Answer: From the analysis above, we can see that Latinx population experienced a disproportionate education attainment comparing to White population. There is a significant proportional difference in Graduate or professional degree and Less than 9th grade categorie. Latinx constitutes a majority of Less than 9th grade education attainment whereas White, not Latinx constitutes a majority of graduate or professiona degree. 
+Answer: From the analysis above, we can see that Latinx population experienced a disproportionate education attainment comparing to White population.  Latinx constitutes a majority of Less than high schoool diploma whereas White, not Latinx constitutes a majority of Bachelor or higher. High school graduates proportion among the three ethnicity groups are relatively equal. There is still noticeable difference between in Some college or associate category between Latinx and White, not Latinx. There is a greater proportion of white, not Latinx that hold some college or associate degree than latinx. 
 

@@ -231,12 +231,13 @@ Now, to begin constructing our aligned geometry set, I first choose to define my
 place_boundary <- places("CA", progress_bar = F) %>% 
   filter(NAME == "North Fair Oaks")
 
-place_blocks_2010 <- smc_pop_2010 %>% 
-  left_join(blocks_2010 %>% select(GEOID10)) %>% 
+place_blocks_2010 <- smc_pop_2010 %>%
+  left_join(blocks_2010 %>%
+  select(GEOID10))%>%
   st_as_sf()%>%
   st_centroid() %>% 
   .[place_boundary, ] %>% 
-  st_drop_geometry()%>% #st_set_geometry(NULL)
+  st_drop_geometry()%>% 
   left_join(blocks_2010 %>%
   select(GEOID10))%>% 
   st_as_sf() #%>% 
@@ -246,12 +247,14 @@ mapview(place_blocks_2010) + mapview(place_boundary, alpha.regions = 0, color = 
 Next, to perform spatial subsetting, we'll need all 2020 blocks that intersect with 2010 blocks.
 ```{r}
 place_blocks_2020 <- blocks_2020 %>%
-  .[place_boundary, ] %>% 
-  st_drop_geometry()%>%
-  select(GEOID20) %>% 
-  left_join(blocks_2010, by=c("GEOID20"="GEOID10"))%>%
-  left_join(smc_pop_2020) %>%
-  st_as_sf()  #make it a sf 
+  #st_as_sf()%>%
+  #st_centroid() %>% 
+  #.[blocks_2010, ] %>% 
+  .[blocks_2010, ] %>% 
+  select(GEOID20)%>%
+  #st_drop_geometry()%>%
+  left_join(smc_pop_2020)%>%
+  st_as_sf()
   
 ```
 Now, I follow the spatial subsetting method shown in Chapter 2.4.
@@ -263,7 +266,7 @@ place_blocks_2020_intersect <- place_blocks_2020 %>%
     blocks_2010 %>%
       select(GEOID10) %>% 
       st_transform(26910)
-  ) %>% 
+  )%>% 
   mutate(
     leftover_area = st_area(.),
     perc_area = as.numeric(leftover_area / original_area),

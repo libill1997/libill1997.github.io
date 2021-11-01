@@ -1,0 +1,153 @@
+---
+title: "CEE118X_Session7"
+author: "Bill Li"
+date: "10/26/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, warning=F, message = F) #warning messages and codes do not show
+```
+
+```{r}
+library(tidyverse)
+library(censusapi)
+library(sf)
+library(mapview)
+library(tigris)
+library(plotly)
+
+
+Sys.setenv(CENSUS_KEY="c8aa67e4086b4b5ce3a8717f59faa9a28f611dab")
+
+acs_vars_2019_5yr <-
+  listCensusMetadata(
+    name = "2019/acs/acs5",
+    type = "variables"
+  )
+```
+
+```{r}
+bay_multiple_tract <- 
+  getCensus(
+    name = "acs/acs5",
+    vintage = 2019,
+    region = "tract:*",
+    regionin = "state:06+county:001,013,041,055,075,081,085,095,097",
+    vars = c(
+      "B06009_001E",
+      "B06009_002E",
+      "B06009_003E",
+      "B19001_001E",
+      "B19001_014E",
+      "B19001_015E",
+      "B19001_016E",
+      "B19001_017E",
+      "B19001A_001E"
+    )
+  ) %>% 
+  transmute(
+    tract = paste0(state, county, tract),
+    perc_college = 1 - (B06009_002E + B06009_003E) / B06009_001E,
+    perc_over100k = (B19001_014E + B19001_015E + B19001_016E + B19001_017E) / B19001_001E,
+    perc_white = B19001A_001E / B19001_001E
+  ) %>% 
+  filter(
+    !is.na(perc_college), 
+    !is.na(perc_over100k),
+    !is.na(perc_white)
+  )
+
+plot_ly(
+  data = bay_multiple_tract, 
+  x=~perc_white, 
+  y=~perc_college, 
+  z=~perc_over100k, 
+  type="scatter3d", 
+  mode="markers", 
+  color = ~perc_over100k)
+```
+
+```{r}
+#This week's assignment support 
+library(censusapi)
+library(tidyverse)
+library(tigris)
+library(sf)
+library(leaflet)
+
+Sys.setenv(CENSUS_KEY="c8aa67e4086b4b5ce3a8717f59faa9a28f611dab")
+
+ pums_2019_1yr <- getCensus(
+   name = "acs/acs1/pums",
+   vintage = 2019,
+   region = "public use microdata area:*",
+   regionin = "state:06",
+   vars = c(
+     "SERIALNO",
+     "SPORDER",
+     "PWGTP",
+     "WGTP",
+     "YBL",
+     "BLD",
+     "TEN",
+    "MV",
+     "HINCP",
+    "AGEP"
+   )
+ )
+saveRDS(pums_2019_1yr, "a6_pums.rds")
+pums_2019_1yr <- readRDS("a6_pums.rds")
+
+ca_pumas <-
+  pumas("CA", cb = T, progress_bar = F)
+
+sf_boundary <-
+  counties("CA", cb = T, progress_bar = F) %>%
+  filter(NAME == "San Francisco") #we only want SF
+
+sf_pumas <-
+  ca_pumas %>% 
+  st_centroid() %>% 
+  .[sf_boundary, ] %>% 
+  st_drop_geometry() %>% 
+  left_join(ca_pumas %>% select(GEOID10)) %>% 
+  st_as_sf()
+```
+
+```{r}
+sf_pums<-pums_2019_1yr %>% 
+  mutate(
+    PUMA = str_pad(public_use_microdata_area,5,"left","0")
+  ) %>% 
+  filter(PUMA %in% sf_pumas$PUMACE10) 
+#str_pad() is used to pad the field public_use_microdata_area with extra zeros on the left, because that is how the field PUMACE10 in bay_pumas documents its PUMAs. This is a common difference between string and numeric fields.
+
+
+```
+
+```{r}
+# step 1 and 2 done
+
+sf_pums_clean<- sf_pums%>%
+  mutate(
+    YBL= as.numeric(YBL),
+    AGEP= as.numeric(AGEP)
+  )%>%
+  filter(YBL %in% as.character(1:3))%>%
+#or  YBL = as.numeric(YBL) %>% filter(YBL %in%  1:3) which is another method
+#how to groupby and summarize with families of less than 6 year old. For the 
+#youngest person in the household, are they 6?
+  arrange(AGEP)%>% #arrange by age which makes the smallest age the first
+  group_by(SERIALNO)%>% #serial number in the sf_pums
+  summarize_all(first) #what do we wanna keep? 
+  
+# first() take the first one of a category. So now we will have each household that has the youngest individual as a row. 
+
+
+# use 5.4 lecture for help 
+
+#use unique(sf_pums$YBL) to see year built for housings in the window 
+
+```
+
