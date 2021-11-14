@@ -1,0 +1,67 @@
+---
+title: "CEE118X_Final"
+author: "Bill Li"
+date: "11/3/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, warning=F, message = F) #warning messages and codes do not show
+```
+
+```{r}
+library(tidyverse)
+library(censusapi)
+library(sf)
+library(mapview)
+library(tigris)
+library(mapview)
+library(readxl)
+library(leaflet)
+library(dplyr)
+```
+
+```{r} 
+#load American Community Survey one year data 
+acs_vars_2019_1yr <-
+  listCensusMetadata(
+    name = "2019/acs/acs1",
+    type = "variables"
+  ) 
+```
+
+```{r}
+Sys.setenv(CENSUS_KEY="c8aa67e4086b4b5ce3a8717f59faa9a28f611dab")
+```
+
+```{r}
+ces4<- read_excel("calenviroscreen40resultsdatadictionary_F_2021.xlsx")
+```
+
+```{r}
+bay_county_names <-
+  c(
+    "Alameda",
+    "Contra Costa",
+    "Marin",
+    "Napa",
+    "San Francisco",
+    "San Mateo",
+    "Santa Clara",
+    "Solano",
+    "Sonoma"
+  )
+```
+
+```{r}
+ces4_clean<- ces4%>%
+  dplyr::select(!ends_with("Pctl"))%>%
+  filter(`California County` %in% bay_county_names)%>%
+  select(`Census Tract`, `Drinking Water`,`Total Population`)
+```
+
+
+```{r}
+ca_tracts <- tracts("CA", cb = T, progress_bar = F)
+```
+

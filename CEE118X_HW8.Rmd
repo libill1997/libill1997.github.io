@@ -1,0 +1,307 @@
+---
+title: "CEE118X_HW8"
+author: "Bill Li"
+date: "11/10/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, warning=F, message = F) #warning messages and codes do not show
+```
+
+```{r}
+library(tigris)
+library(tidyverse)
+library(tidycensus)
+library(sf)
+library(censusapi)
+library(leaflet)
+library(StatMatch)
+
+Sys.setenv(CENSUS_KEY="c8aa67e4086b4b5ce3a8717f59faa9a28f611dab")
+
+ca_pumas <-
+  pumas("CA", cb = T, progress_bar = F)
+
+bay_county_names <-
+  c(
+    "Alameda",
+    "Contra Costa",
+    "Marin",
+    "Napa",
+    "San Francisco",
+    "San Mateo",
+    "Santa Clara",
+    "Solano",
+    "Sonoma"
+  )
+
+bay_counties <-
+  counties("CA", cb = T, progress_bar = F) %>%
+  filter(NAME %in% bay_county_names)
+
+bay_pumas <-
+  ca_pumas %>% 
+  st_centroid() %>% 
+  .[bay_counties, ] %>% 
+  st_drop_geometry() %>% 
+  left_join(ca_pumas %>% select(GEOID10)) %>% 
+  st_as_sf()
+```
+```{r}
+leaflet() %>% 
+  addProviderTiles(providers$CartoDB.Positron) %>% 
+  addPolygons(
+    data = bay_pumas,
+    weight = 1,
+    color = "gray",
+    label = ~PUMACE10
+  ) %>% 
+  addMarkers(
+    lng = -121.78033390901669, # use google map to find the antiboch station longitude and latitude!!!!!!
+    lat = 37.996004099861175 #you can directly put in longitude and longitude with addMarkers()
+  ) %>% 
+  addPolygons(
+    data = bay_pumas %>% 
+      filter(PUMACE10 == "01309") # find using mapview
+  )
+
+# dataframe %>% st_as_sf(coords = c("lng_name","lat_name"), crs = 4326)
+```
+
+```{r}
+pums_2014_2019 <- readRDS('pums_2014_2019_wts.rds')  #read the file instead of running the code below? 
+```
+
+
+```{r}
+pums_bart <- pums_2014_2019 %>%
+  mutate(
+    PWGTP = as.numeric(PWGTP),
+    bart = ifelse(
+      JWTR %in% c("4"), #if mean is 4, assign the value from PWGTP
+      PWGTP,
+      0
+    )
+  ) %>% 
+  group_by(PUMA, year) %>% 
+  summarize(
+    pop = sum(PWGTP),
+    bart = sum(bart)
+  )
+```
+
+
+```{r}
+pums_pal <- colorNumeric(
+  palette = "YlOrRd",
+  domain = pums_bart %>% 
+    filter(year == 2018) %>%  #our bart station opens in 2018
+    pull(pop)
+)
+
+leaflet() %>% 
+  addProviderTiles(providers$CartoDB.Positron) %>% 
+  addPolygons(
+    data = pums_bart %>% 
+      filter(year == 2018) %>% 
+      right_join(bay_pumas %>% select(PUMA = PUMACE10)) %>% 
+      st_as_sf(),
+    fillColor = ~pums_pal(pop),
+    color = "white",
+    weight = 1,
+    fillOpacity = 0.5,
+    label = ~paste0(PUMA,": Population ", pop)
+  )
+
+# big area of puma does not mean high value. 
+```
+
+
+```{r}
+pums_pal <- colorNumeric(
+  palette = "GnBu",
+  domain = pums_bart %>% 
+    filter(year == 2018) %>% 
+    pull(bart)
+)
+
+leaflet() %>% 
+  addProviderTiles(providers$CartoDB.Positron) %>% 
+  addPolygons(
+    data = pums_bart %>% 
+      filter(year == 2018) %>% 
+      right_join(bay_pumas %>% select(PUMA = PUMACE10)) %>% 
+      st_as_sf(),
+    fillColor = ~pums_pal(bart),
+    color = "white",
+    weight = 1,
+    fillOpacity = 0.5,
+    label = ~paste0(PUMA,": ", bart, " BART commute riders")
+  )
+
+#large number of riders in the huge area, spread out in the large place. So very small number of riders in the light green region. 
+```
+
+
+
+
+
+
+```{r}
+pums_bart_clean <-
+  pums_bart %>% 
+  select(-pop) %>% 
+  pivot_wider(
+    names_from = year,
+    values_from = bart
+  ) # line all the years via columns 
+```
+
+
+```{r}
+
+#simialr to 6.1; sibling pumas == having similar number of bart train riders. Our treatment is 2018
+obs_matrix <-
+  pums_bart_clean %>% 
+  ungroup() %>% 
+  select(`2014`,`2015`,`2016`, `2017`) %>% #for our case, we use up to 2017. (watch  recording)
+  as.matrix()
+
+dist_matrix <- mahalanobis.dist(obs_matrix)
+
+rownames(dist_matrix) <- pums_bart_clean$PUMA
+colnames(dist_matrix) <- pums_bart_clean$PUMA
+
+match <- dist_matrix["01309",] %>%  #whatever row refer to this puma. find top 11
+  as.data.frame() %>% 
+  rownames_to_column() %>% 
+  rename(
+    PUMA = rowname,
+    match = "."
+  ) %>% 
+  right_join(
+    pums_bart_clean
+  ) %>% 
+  arrange(match) %>% 
+  .[1:11, ] %>% 
+  left_join(bay_pumas %>% select(PUMA = PUMACE10)) %>% 
+  st_as_sf()
+```
+
+```{r}
+leaflet() %>% 
+  addTiles() %>% 
+  addProviderTiles(providers$CartoDB.Positron) %>% 
+  addPolygons(
+    data = match[1, ],
+    color = "red",
+    label = ~PUMA
+  ) %>% 
+  addPolygons(
+    data = match[-1, ],
+    label = ~PUMA
+  )
+```
+
+
+```{r}
+match_pumas <-
+  match %>% 
+  filter(!PUMA %in% c("01309")) %>% 
+  st_drop_geometry() %>% #dropping geometry
+  select(-match) %>% 
+  pivot_longer(
+    -PUMA,
+    names_to = "year",
+    values_to = "bart"
+  ) %>%
+  group_by(
+    year
+  ) %>% 
+  summarize(
+    bart = mean(bart),
+    PUMA = "Similar PUMAs"
+  )# result in one value for each year. 
+
+treatment_pumas <-
+  match %>% 
+  filter(PUMA %in% c("01309")) %>% 
+  select(-match) %>% 
+  st_drop_geometry() %>% 
+  pivot_longer(
+    -PUMA,
+    names_to = "year",
+    values_to = "bart"
+  )
+
+rbind(
+  treatment_pumas,
+  match_pumas
+) %>% 
+  ggplot(
+    aes(
+      x = as.numeric(year), #for line chart, factor() for bar chart is good
+      y = bart,
+      color = PUMA
+    )
+  ) +
+  geom_line() +
+  geom_vline(xintercept = 2018, linetype = "dashed") +
+  labs(
+    title = "Antioch BART station vs. control neighborhoods, BART ridership",
+    x = "Year",
+    y = "BART commute riders"
+  )
+
+# from 2016 to 2017 averaged together by parallel trend assumption. Year 2017, people now say they are bart riders. Look at 2016 and 2017. Gap between red and blue shows a more increase in bart riders. 
+# 
+```
+
+
+Analysis: Just based on the graph above, it seems that there is an increase in ridership after the opening of the new Antioch BART station. 
+
+```{r}
+transit_did <-
+  match %>% 
+  st_drop_geometry() %>% 
+  select(-match) %>% 
+  pivot_longer(
+    -PUMA,
+    names_to = "year",
+    values_to = "bart"
+  ) %>% 
+  mutate(
+    year = year %>% as.numeric(),
+    time = ifelse(year >= 2018, 1, 0), # needs to change to after 2018
+    treated = ifelse(PUMA == "01309", 1, 0) 
+  )
+
+did_reg <- lm(bart ~ treated*time, data = transit_did)
+
+summary(did_reg)
+
+#interpret result 
+
+#blue line is untreated; red line is treated. Estimate is the difference. 
+
+#for the assignment, the time frame is (mid2018 opened)
+
+#time is control group, not correlate to the construction of the new bart station. 
+```
+
+
+Analysis on DiD: The treated:time is the "difference-in-differences"(DiD) result of interest. The value is 1097 which indicates that the new Antioch Bart Station has an estimated impact of about 1100 new Bart commuters. The P value is 2.11e-06, so the result of the DiD effect size is significant. (p-value is less than 5%) Therefore, we can make a conclusion that the new Antioch Bart Station does increase the number of bart riders after it opens for business. 
+
+
+Analysis on the model: 
+
+Arbitrary Choices:
+  There are some factors that can affect our result. We used ACS questionnaire to represent a Bart commute trip, but we assume that "Subway or elevated car" is equivalent of bart. Antiboch Bart station opened in 2018, but the PUMS responses could have been sampled from earlier in the year. We chose 4 years of post treatment because of the data availability. More data may change our result, so the increase in bart riders can be less or more significant. Our geography scale is large, so we can not see the relevant effect in regional level. For example, some cities may have more bart riders than the others. The large scale dilutes the differences between cities. We chose 10 matching PUMAs using Mahalanobis distance, but there could be more or less PUMAs. There are no other variables in our analysis. Income, race, age, and other variables can have effects on the bart riders. 
+
+Others:
+  Treated in this case represents the pretreatment differeced between 01309 and Similar PUMAs line before 2018. 
+  
+  
+
+

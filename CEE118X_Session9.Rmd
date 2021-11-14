@@ -1,0 +1,667 @@
+---
+title: "CEE118X_Session9"
+author: "Bill Li"
+date: "11/9/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, warning=F, message = F) #warning messages and codes do not show
+```
+
+```{r}
+fire<-  sample(
+  c(0,1), 
+  size= 10000,
+  replace= T #yes for replacement
+)#generate a random dataset from 0 to 1 that is random
+  
+  
+smoke<- ifelse(
+  fire==1, #condition for true
+  sample(  #condition of if
+  c(0,1), 
+  size= 10000,
+  replace= T,
+  prob= c(0.05, 0.95)), #if fire happend in the room, 95% smoke come out
+  sample(
+  c(0,1), 
+  size= 10000,
+  replace= T,
+  prob= c(0.8, 0.2)#20 percent time no fire but smoke exist 
+  )
+)
+  
+alarm <- ifelse(
+  smoke == 1,
+  sample(
+    c(0,1),
+    size = 10000,
+    replace = T,
+    prob = c(0.01, 0.99)
+  ),
+  sample(
+    c(0,1),
+    size = 10000,
+    replace = T,
+    prob = c(0.99,0.01)
+  )
+)
+
+  
+
+data<- data.frame(
+  fire_name= fire,
+  smoke_name= smoke, 
+  alarm_name= alarm
+)
+```
+
+
+```{r}
+#regression
+
+model<- glm(
+  alarm ~ fire,
+  data= data,
+  family = quasibinomial()
+)
+
+summary(model)
+```
+
+```{r}
+model$coefficients[2] #the slope 
+
+exp(model$coefficients[2])/(exp(model$coefficients[2])+1) #percent change 
+
+```
+
+```{r}
+model<- glm(
+  alarm ~ smoke, #now predict against smoke
+  data= data,
+  family = quasibinomial()
+)
+
+summary(model)
+
+model$coefficients[2] #the slope 
+
+exp(model$coefficients[2])/(exp(model$coefficients[2])+1) #percent chance of correlate
+```
+
+```{r}
+model<- glm(
+  alarm ~ smoke+fire, #now predict against smoke
+  data= data,
+  family = quasibinomial()
+)
+
+summary(model)
+
+model$coefficients[2] #the slope 
+
+exp(model$coefficients[2])/(exp(model$coefficients[2])+1)
+
+#Now the p value or Pr(>|t|) is larger than 0.05 so we can know that fire is not correlate to smoke alarm when factoring the smoke data
+```
+
+
+```{r}
+age<- sample(
+    5:10, # age from 5 to 10
+    size = 10000,
+    replace = T)
+  
+shoe<- age + rnorm(10000) #without specify = mean of 0, std of 1
+  
+  
+  
+reading<- age*2 - 5+
+  rnorm(10000)*1.5
+  
+  
+data<- data.frame(
+  age_name=age,
+  shoe_name=shoe,
+  reading_name=reading
+)
+```
+
+
+```{r}
+model<- lm(
+  reading~shoe,
+  data_name= data
+)
+summary(model)
+
+
+
+#for every unit of shoe size increase, there is 1.489 increase of reading 
+```
+```{r}
+model<- lm(
+  reading~shoe + age,
+  data_name= data
+)
+summary(model)
+
+#for every increase in age, you got 2.02 increase in reading ability
+# for eveyr increase in age, you got -0.02 decrease in shoe size
+
+#also based on p value= 0.14 which is >0.05 meaning that there is no relationship between shoe size and reading
+```
+
+```{r}
+
+talent<- rnorm(10000) # normaly distributed around 0
+  
+beauty<- rnorm(10000)
+  
+celebrity<- ifelse(
+  talent + beauty >2,
+  1, # talent and beauty greater than 2 than you are celebrity
+  0  # else you are not a celebrity
+)
+  
+data<- data.frame(
+  talent= talent,
+  beauty= beauty,
+  celebrity= celebrity
+)
+```
+
+
+```{r}
+model<- glm(
+  celebrity ~ talent, 
+  data= data,
+  family = 
+    quasibinomial()
+)
+summary(model)
+```
+
+
+
+```{r}
+#linear model
+
+model<- lm(
+  beauty ~ talent, 
+  data= data
+)
+
+summary(model)
+
+# beauty and talent has no correlation
+```
+
+```{r}
+
+model<- lm(
+  beauty ~ talent + celebrity, 
+  data= data
+)
+
+summary(model)
+
+#higher your beauty, lower the talent; more talent less beauty
+#because our ifelse( talent + beauty >2) 
+```
+
+
+```{r}
+#6.1  Cause and Difference 
+library(tidyverse)
+library(censusapi)
+library(StatMatch)
+library(sf)
+library(leaflet)
+library(tigris)
+```
+
+
+```{r}
+Sys.setenv(CENSUS_KEY="c8aa67e4086b4b5ce3a8717f59faa9a28f611dab")
+
+acs_vars_2019_5yr <-
+  listCensusMetadata(
+    name = "2019/acs/acs5",
+    type = "variables"
+  )
+
+bay_county_names <-
+  c(
+    "Alameda",
+    "Contra Costa",
+    "Marin",
+    "Napa",
+    "San Francisco",
+    "San Mateo",
+    "Santa Clara",
+    "Solano",
+    "Sonoma"
+  )
+
+bay_tracts <-
+  tracts("CA", bay_county_names, cb = T, progress_bar = F)
+
+bay_multiple_tract <- 
+  getCensus(
+    name = "acs/acs5",
+    vintage = 2019,
+    region = "tract:*",
+    regionin = "state:06+county:001,013,041,055,075,081,085,095,097",
+    vars = c(
+      "B06009_001E",
+      "B06009_002E",
+      "B06009_003E",
+      "B19001_001E",
+      "B19001_014E",
+      "B19001_015E",
+      "B19001_016E",
+      "B19001_017E",
+      "B19001A_001E"
+    )
+  ) %>% 
+  transmute(
+    tract = paste0(state, county, tract),
+    perc_college = 1 - (B06009_002E + B06009_003E) / B06009_001E,
+    perc_over100k = (B19001_014E + B19001_015E + B19001_016E + B19001_017E) / B19001_001E,
+    perc_white = B19001A_001E / B19001_001E
+  ) %>% 
+  filter(
+    !is.na(perc_college), 
+    !is.na(perc_over100k),
+    !is.na(perc_white)
+  ) 
+```
+
+```{r}
+
+obs_matrix <- # a little different from dataframe; numeric dataframe 
+  bay_multiple_tract %>% 
+  select(
+    perc_white, 
+    perc_over100k,
+    perc_college
+  ) %>% 
+  as.matrix()  #gets rid of tract id and convert into a matrix 
+```
+
+```{r}
+dist_matrix <- mahalanobis.dist(obs_matrix) #apply mahalanobis distribution requires numeric matrix. It remembers the order of things, the main diagonal is 0. First tract is more similar to second tract than the third tract. 
+
+rownames(dist_matrix) <- bay_multiple_tract$tract
+colnames(dist_matrix) <- bay_multiple_tract$tract  #quick way to change all column names 
+```
+
+
+```{r}
+dist_matrix_pairmatch <- dist_matrix #make a copy of the matrix.
+
+#if we want to find the minimum value, to do calculation we need to name 0 as NA.
+diag(dist_matrix_pairmatch) <- NA
+
+matched_pair_tract <-
+  1:nrow(dist_matrix_pairmatch) %>% #take numbers 
+  map_dfr(function(x){ #map_dfr will combine a thousand steps into one whole thing(for loop)
+    
+    min_index <- which(dist_matrix_pairmatch[x, ] == min(dist_matrix_pairmatch[x, ], na.rm = T)) #grab the first row; grab the minimum value in the row. Use which() to yield: tell me true or false of the first row values if any is equal to the minimum value. (mostly is going to be false)
+   
+    data.frame(
+      tract = bay_multiple_tract$tract[x],
+      matched_tract = bay_multiple_tract$tract[min_index]
+    )#give you two columnd
+    
+  })
+```
+
+
+```{r}
+leaflet() %>% 
+  addProviderTiles(providers$CartoDB.Positron) %>% 
+  addPolygons(
+    data = bay_tracts %>% 
+      filter(GEOID == matched_pair_tract[2,1])#only when two columns are matched. 
+  ) %>% 
+  addPolygons(
+    data = bay_tracts %>% 
+      filter(GEOID == matched_pair_tract[2,2])
+  ) %>% 
+  addPolygons(
+    data = bay_tracts %>% 
+      filter(GEOID == matched_pair_tract[3,1]),
+    color = "green"
+  ) %>% 
+  addPolygons(
+    data = bay_tracts %>% 
+      filter(GEOID == matched_pair_tract[3,2]),
+    color = "green"
+  ) %>% 
+  addPolygons(
+    data = bay_tracts %>% 
+      filter(GEOID == matched_pair_tract[4,1]),
+    color = "red"
+  ) %>% 
+  addPolygons(
+    data = bay_tracts %>% 
+      filter(GEOID == matched_pair_tract[4,2]),
+    color = "red"
+  )
+```
+
+
+```{r}
+match_set_tract <- dist_matrix["06081611900", ] %>% #palo alto 
+  as.data.frame() %>% 
+  rownames_to_column() %>% 
+  rename(
+    tract = rowname,
+    match = "."
+  ) %>% 
+  right_join(
+    bay_multiple_tract
+  ) %>% 
+  arrange(match) %>% 
+  .[1:21, ] %>% 
+  left_join(bay_tracts %>% select(tract = GEOID)) %>% 
+  st_as_sf()
+
+leaflet() %>% 
+  addProviderTiles(providers$CartoDB.Positron) %>% 
+  addPolygons(
+    data = match_set_tract[1, ],
+    color = "red"
+  ) %>% 
+  addPolygons(
+    data = match_set_tract[-1, ]
+  )
+```
+
+
+```{r}
+
+#6.2 or hw
+library(tigris)
+library(tidyverse)
+library(tidycensus)
+library(sf)
+library(censusapi)
+library(leaflet)
+library(StatMatch)
+
+Sys.setenv(CENSUS_KEY="c8aa67e4086b4b5ce3a8717f59faa9a28f611dab")
+
+ca_pumas <-
+  pumas("CA", cb = T, progress_bar = F)
+
+bay_county_names <-
+  c(
+    "Alameda",
+    "Contra Costa",
+    "Marin",
+    "Napa",
+    "San Francisco",
+    "San Mateo",
+    "Santa Clara",
+    "Solano",
+    "Sonoma"
+  )
+
+bay_counties <-
+  counties("CA", cb = T, progress_bar = F) %>%
+  filter(NAME %in% bay_county_names)
+
+bay_pumas <-
+  ca_pumas %>% 
+  st_centroid() %>% 
+  .[bay_counties, ] %>% 
+  st_drop_geometry() %>% 
+  left_join(ca_pumas %>% select(GEOID10)) %>% 
+  st_as_sf()
+```
+
+```{r}
+leaflet() %>% 
+  addProviderTiles(providers$CartoDB.Positron) %>% 
+  addPolygons(
+    data = bay_pumas,
+    weight = 1,
+    color = "gray",
+    label = ~PUMACE10
+  ) %>% 
+  addMarkers(
+    lng = -121.9415017, # use google map to find the antiboch station longitude and latitude!!!!!!
+    lat = 37.502171 #you can directly put in longitude and longitude with addMarkers()
+  ) %>% 
+  addPolygons(
+    data = bay_pumas %>% 
+      filter(PUMACE10 == "08504") # find using mapview
+  )
+
+# dataframe %>% st_as_sf(coords = c("lng_name","lat_name"), crs = 4326)
+```
+
+
+```{r}
+
+pums_2014_2019<- readRDS("pums_2014_2019_wts.rds") #read red instead of directly use Get Census 
+
+```
+
+```{r}
+pums_bart <- pums_2014_2019 %>%
+  mutate(
+    PWGTP = as.numeric(PWGTP),
+    bart = ifelse(
+      JWTR %in% c("4"), #if mean is 4, assign the value from PWGTP
+      PWGTP,
+      0
+    )
+  ) %>% 
+  group_by(PUMA, year) %>% 
+  summarize(
+    pop = sum(PWGTP),
+    bart = sum(bart)
+  )
+
+#JWTR is mean transportation 
+```
+
+```{r}
+pums_pal <- colorNumeric(
+  palette = "YlOrRd",
+  domain = pums_bart %>% 
+    filter(year == 2017) %>% 
+    pull(pop)
+)
+
+leaflet() %>% 
+  addProviderTiles(providers$CartoDB.Positron) %>% 
+  addPolygons(
+    data = pums_bart %>% 
+      filter(year == 2017) %>% 
+      right_join(bay_pumas %>% select(PUMA = PUMACE10)) %>% 
+      st_as_sf(),
+    fillColor = ~pums_pal(pop),
+    color = "white",
+    weight = 1,
+    fillOpacity = 0.5,
+    label = ~paste0(PUMA,": Population ", pop)
+  )
+
+# big area of puma does not mean high value. 
+```
+
+
+```{r}
+pums_pal <- colorNumeric(
+  palette = "GnBu",
+  domain = pums_bart %>% 
+    filter(year == 2017) %>% 
+    pull(bart)
+)
+
+leaflet() %>% 
+  addProviderTiles(providers$CartoDB.Positron) %>% 
+  addPolygons(
+    data = pums_bart %>% 
+      filter(year == 2017) %>% 
+      right_join(bay_pumas %>% select(PUMA = PUMACE10)) %>% 
+      st_as_sf(),
+    fillColor = ~pums_pal(bart),
+    color = "white",
+    weight = 1,
+    fillOpacity = 0.5,
+    label = ~paste0(PUMA,": ", bart, " BART commute riders")
+  )
+
+#large number of riders in the huge area, spread out in the large place. So very small number of riders in the light green region. 
+```
+
+```{r}
+pums_bart_clean <-
+  pums_bart %>% 
+  select(-pop) %>% 
+  pivot_wider(
+    names_from = year,
+    values_from = bart
+  ) # line all the years via columns 
+```
+
+
+```{r}
+
+#simialr to 6.1; sibling pumas == having similar number of bart train riders. Our treatment is 2018
+obs_matrix <-
+  pums_bart_clean %>% 
+  ungroup() %>% 
+  select(`2014`,`2015`,`2016`) %>% #for our case, we use up to 2017. (watch  recording)
+  as.matrix()
+
+dist_matrix <- mahalanobis.dist(obs_matrix)
+
+rownames(dist_matrix) <- pums_bart_clean$PUMA
+colnames(dist_matrix) <- pums_bart_clean$PUMA
+
+match <- dist_matrix["08504",] %>%  #whatever row refer to this puma. find top 11
+  as.data.frame() %>% 
+  rownames_to_column() %>% 
+  rename(
+    PUMA = rowname,
+    match = "."
+  ) %>% 
+  right_join(
+    pums_bart_clean
+  ) %>% 
+  arrange(match) %>% 
+  .[1:11, ] %>% 
+  left_join(bay_pumas %>% select(PUMA = PUMACE10)) %>% 
+  st_as_sf()
+```
+
+
+
+```{r}
+leaflet() %>% 
+  addTiles() %>% 
+  addProviderTiles(providers$CartoDB.Positron) %>% 
+  addPolygons(
+    data = match[1, ],
+    color = "red",
+    label = ~PUMA
+  ) %>% 
+  addPolygons(
+    data = match[-1, ],
+    label = ~PUMA
+  )
+```
+
+
+```{r}
+match_pumas <-
+  match %>% 
+  filter(!PUMA %in% c("08504")) %>% 
+  st_drop_geometry() %>% #dropping geometry
+  select(-match) %>% 
+  pivot_longer(
+    -PUMA,
+    names_to = "year",
+    values_to = "bart"
+  ) %>%
+  group_by(
+    year
+  ) %>% 
+  summarize(
+    bart = mean(bart),
+    PUMA = "Similar PUMAs"
+  )# result in one value for each year. 
+
+treatment_pumas <-
+  match %>% 
+  filter(PUMA %in% c("08504")) %>% 
+  select(-match) %>% 
+  st_drop_geometry() %>% 
+  pivot_longer(
+    -PUMA,
+    names_to = "year",
+    values_to = "bart"
+  )
+
+rbind(
+  treatment_pumas,
+  match_pumas
+) %>% 
+  ggplot(
+    aes(
+      x = as.numeric(year), #for line chart, factor() for bar chart is good
+      y = bart,
+      color = PUMA
+    )
+  ) +
+  geom_line() +
+  geom_vline(xintercept = 2017, linetype = "dashed") +
+  labs(
+    title = "Milpitas vs. control neighborhoods, BART ridership",
+    x = "Year",
+    y = "BART commute riders"
+  )
+
+# from 2016 to 2017 averaged together by parallel trend assumption. Year 2017, people now say they are bart riders. Look at 2016 and 2017. Gap between red and blue shows a more increase in bart riders. 
+# 
+```
+
+
+```{r}
+transit_did <-
+  match %>% 
+  st_drop_geometry() %>% 
+  select(-match) %>% 
+  pivot_longer(
+    -PUMA,
+    names_to = "year",
+    values_to = "bart"
+  ) %>% 
+  mutate(
+    year = year %>% as.numeric(),
+    time = ifelse(year >= 2017, 1, 0), # needs to change to after 2018
+    treated = ifelse(PUMA == "08504", 1, 0) 
+  )
+
+did_reg <- lm(bart ~ treated*time, data = transit_did)
+
+summary(did_reg)
+
+#interpret result 
+
+#blue line is untreated; red line is treated. Estimate is the difference. 
+
+#for the assignment, the time frame is (mid2018 opened)
+
+#time is control group, not correlate to the construction of the new bart station. 
+```
+
