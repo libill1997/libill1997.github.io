@@ -65,3 +65,408 @@ ces4_clean<- ces4%>%
 ca_tracts <- tracts("CA", cb = T, progress_bar = F)
 ```
 
+```{r}
+ces4_map<-ces4_clean%>%
+  left_join(
+    ca_tracts%>%  #join California spacial dataset 
+    select(GEOID) %>% # we specify we want to join by GEOID 
+    mutate(GEOID= as.numeric(GEOID)), #we convert GEOID from characters to numeric value
+    by = c("Census Tract" = "GEOID") #join ces4_clean "census tract" with geometry data from ca tract
+            )%>% #This code produce ces4_clean with addition of spatial component column
+    st_as_sf()
+
+mapview(ces4_map, zcol = "Drinking Water")
+```
+
+  From the map above, we can see that the drinking water index is lower in east part of the bay area than anywhere else in the bay area. 
+  
+```{r}
+color1 <- colorNumeric(
+  palette = "Blues",
+  domain = 
+    ces4_map$`Drinking Water`
+)
+
+leaflet() %>% 
+  addProviderTiles(provider = providers$CartoDB.Positron) %>% 
+  addPolygons(
+    data = 
+      ces4_map %>% 
+        st_as_sf(),
+    fillColor = ~color1 (`Drinking Water`),
+    color = "white",
+    opacity = 0.5,
+    fillOpacity = 0.75,
+    weight = 1,
+    label = ~paste0(
+      round(`Drinking Water`), 
+      "Index"
+    ),
+    highlightOptions = highlightOptions(
+      weight = 2,
+      opacity = 1
+    )
+  ) %>% 
+  addLegend(
+    data = ces4_map,
+    pal = color1,
+    values = ~`Drinking Water`,
+    title = "Drinking Water Index"
+  )
+```
+
+
+  The leaflet() map above shows that the northern bay and San Jose area have a higher drinking water index. In other words, there are more violations or contaminants in these regions in the past. 
+  
+  
+  
+```{r} 
+census_race_categories <- 
+  c(
+    "White Alone",
+    "Black or African American",
+    "American Indian and Alaska Native Alone",
+    "Asian Alone",
+    "Native Hawaiian and Other Pacific Islander Alone",
+    "Some Other Race Alone",
+    "Two or More Races"
+  )
+#Get race information from census using 2019 population data 
+
+
+bay_race_tracts <-
+  1:7 %>% 
+  map_dfr(function(x){
+    getCensus(
+      name = "acs/acs5",
+      vintage = 2019,
+      region = "tract:*",
+      regionin = "state:06+county:001,013,041,055,075,081,085,095,097",
+      vars = paste0("B19001",LETTERS[x],"_001E")
+    ) %>%
+      mutate(
+        tract = paste0(state, county, tract) %>% as.numeric(),
+        race = census_race_categories[x]
+      ) %>% 
+      select(
+        tract,
+        race,
+        estimate = paste0("B19001",LETTERS[x],"_001E")
+      )
+  })
+```
+
+```{r}
+summary(ces4_map$`Drinking Water`)
+
+#we know that max value is 941.4 and min value is 103.3 for the drinking water index. 
+```
+
+
+```{r}
+bay_water_race <-
+  bay_race_tracts %>% 
+  left_join(
+    ces4_map %>% 
+      st_drop_geometry(),
+    by = c("tract" = "Census Tract")
+  ) %>% 
+  mutate(
+    `Drinking Water Index` =
+      case_when(
+        `Drinking Water` < 200 ~ "0-200",
+        `Drinking Water` < 400 ~ "200-400",
+        `Drinking Water` < 600 ~ "400-600",
+        `Drinking Water` < 800 ~ "600-800",
+        `Drinking Water` < 1000 ~ "800-1000",
+        TRUE ~ "1000-1100"
+      ) 
+  ) %>% 
+  group_by(race, `Drinking Water Index`) %>% 
+  summarize(estimate = sum(estimate, na.rm = T))
+```
+
+```{r}
+bay_water_race_fill <-
+  bay_water_race %>% 
+  group_by(`Drinking Water Index`, race) %>% 
+  summarize(estimate = sum(estimate)) %>% 
+  rbind(
+    bay_water_race %>% 
+      group_by(race) %>% 
+      summarize(estimate = sum(estimate)) %>% 
+      mutate(`Drinking Water Index` = "Total")
+  ) %>% 
+  ggplot() +
+  geom_bar(
+    aes(
+      x = `Drinking Water Index` %>% factor(levels = rev(c("Total","0-200","200-400","400-600","600-800","800-1000","1000-1100"))), 
+      y = estimate,
+      fill = race %>% factor(levels = rev(census_race_categories))
+    ),
+    stat = "identity",
+    position = "fill"
+  ) +
+  labs(
+    x = "Drinking Water Index",
+    y = "Proportion of households",
+    title = "Bay Area Drinking Water Index by race",
+    subtitle = "Average drinking watercontaminant concentrations over one compliance cycle (2005-2013),\n aggregated by Census tract",
+    fill = "Race of householder"
+  ) +
+  coord_flip() +
+  theme(
+    legend.position = "bottom",
+    legend.direction = "vertical"
+  ) +
+  guides(
+    fill = guide_legend(
+      reverse = T
+    )
+  )
+
+bay_water_race_fill
+```
+
+
+
+The Equity analysis above shows that there is a disproportionate number of white households experience high drinking water index. From 600 to 1000 index values, there is a significant higher proportion of white households compare to the total white household proportion. The result indicates that white households in the bay area have experienced some unfair drinking water contamination between 2005 to 2013. However, there is also a greater proportion of white race than any other race in the bay area. Note, the 1000-1100 data are NAs.
+
+
+
+
+
+
+
+Continue to Income vs. Water Quality Index
+
+```{r}
+acs_vars_2019_1yr <-
+  listCensusMetadata(
+    name = "2019/acs/acs1",
+    type = "variables")
+
+```
+
+
+
+```{r}
+# income with ca tract
+bay_income <-
+  getCensus(
+    name = "acs/acs5",
+    vintage = 2019,
+    region = "tract:*",
+    regionin = "state:06+county:001,013,041,055,075,081,085,095,097",
+    vars = "group(B19001)"
+  ) %>%
+   mutate(
+        tract = paste0(state, county, tract) %>% as.numeric())%>%
+  select(!c(GEO_ID,state,NAME) & !ends_with(c("EA","MA","M"))) %>%
+  pivot_longer(
+    ends_with("E"),
+    names_to = "name",
+    values_to = "estimate")%>%
+  left_join(
+        acs_vars_2019_1yr %>% 
+          select(name, label))%>%
+  select(-name, -county) %>% 
+      separate(
+        label,
+        into = c(NA,NA,"income"),
+        sep = "!!"
+      ) %>% 
+      filter(!is.na(income))#%>%
+  #mutate(tract= tract%>%as.numeric())
+```
+
+
+```{r}
+bay_water_income <-
+  bay_income %>% 
+  left_join(
+    ces4_map %>% 
+      st_drop_geometry(),
+    by = c("tract" = "Census Tract")
+  )%>%
+  mutate(
+    `Drinking Water Index` =
+      case_when(
+        `Drinking Water` < 200 ~ "0-200",
+        `Drinking Water` < 400 ~ "200-400",
+        `Drinking Water` < 600 ~ "400-600",
+        `Drinking Water` < 800 ~ "600-800",
+        `Drinking Water` < 1000 ~ "800-1000",
+        TRUE ~ "1000-1100"
+      ) 
+  ) %>% 
+  mutate(
+    income= 
+      case_when(
+        income == "Less than $10,000"~"Less than 20,000",
+        income == "$10,000 to $14,999"~"Less than 20,000",
+        income == "$15,000 to $19,999"~"Less than 20,000",
+        income == "$20,000 to $24,999"~"20,000-40,000",
+        income == "$25,000 to $29,999"~"20,000-40,000",
+        income == "$30,000 to $34,999"~"20,000-40,000",
+        income == "$35,000 to $39,999"~"20,000-40,000",
+        income == "$40,000 to $44,999"~"40,000-60,000",
+        income == "$45,000 to $49,999"~"40,000-60,000",
+        income == "$50,000 to $59,999"~"40,000-60,000",
+        income == "$60,000 to $74,999"~"60,000-100,000",
+        income == "$75,000 to $99,999"~"60,000-100,000",
+        income == "$100,000 to $124,999"~"100,000-200,000",
+        income == "$125,000 to $149,999"~"100,000-200,000",
+        income == "$150,000 to $199,999"~"100,000-200,000",
+        income == "$200,000 or more"~"Greater than 200,000"
+
+      )
+  )%>%
+  group_by(`Drinking Water Index`,income) %>% 
+  summarize(estimate = sum(estimate, na.rm = T))
+```
+
+        income == "Less than $10,000"~"0-10,000",
+        income == "$10,000 to $14,999"~"10,000-15,000",
+        income == "$15,000 to $19,999"~"15,000-20,000",
+        income == "$20,000 to $24,999"~"20,000-25,000",
+        income == "$25,000 to $29,999"~"25,000-30,000",
+        income == "$30,000 to $34,999"~"30,000-35,000",
+        income == "$35,000 to $39,999"~"35,000-40,000",
+        income == "$40,000 to $44,999"~"40,000-45,000",
+        income == "$45,000 to $49,999"~"45,000-50,000",
+        income == "$50,000 to $59,999"~"50,000-60,000",
+        income == "$60,000 to $74,999"~"60,000-75,000",
+        income == "$75,000 to $99,999"~"75,000-100,000",
+        income == "$100,000 to $124,999"~"100,000-125,000",
+        income == "$125,000 to $149,999"~"125,000-150,000",
+        income == "$150,000 to $199,999"~"150,000-200,000",
+        income == "$200,000 or more"~">200,000"
+
+
+
+factor(levels = rev(c("income", "$10,000 to $14,999","$100,000 to $124,999","$125,000 to $149,999", "$15,000 to $19,999","$150,000 to $199,999","$20,000 to $24,999","$200,000 or more","$25,000 to $29,999","$30,000 to $34,999","$35,000 to $39,999","$40,000 to $44,999","$45,000 to $49,999","$50,000 to $59,999","$60,000 to $74,999","$75,000 to $99,999","Less than $10,000")))
+
+```{r}
+bay_water_income_fill <-
+  bay_water_income %>% 
+  group_by(`Drinking Water Index`, income) %>% 
+  summarize(estimate = sum(estimate)) %>% 
+  rbind(
+    bay_water_income %>% 
+      group_by(income) %>% 
+      summarize(estimate = sum(estimate)) %>% 
+      mutate(`Drinking Water Index` = "Total")
+  ) %>% 
+  ggplot() +
+  geom_bar(
+    aes(
+      x = `Drinking Water Index` %>% factor(levels = rev(c("Total","0-200","200-400","400-600","600-800","800-1000","1000-1100"))), 
+      y = estimate,
+      fill = income #%>% 
+    ),
+    stat = "identity",
+    position = "fill"
+  )+
+  labs(
+    x = "Drinking Water Index",
+    y = "Proportion of households",
+    title = "Bay Area Drinking Water Index by Income",
+    subtitle = "Average drinking watercontaminant concentrations over one compliance cycle (2005-2013),\n aggregated by Census tract",
+    fill = "Incomes of the householder"
+  ) +
+  coord_flip() +
+  #theme(
+    #legend.position = "bottom",
+    #legend.direction = "vertical"
+  #) +
+  guides(
+    fill = guide_legend(
+      reverse = T
+    )
+  )
+
+bay_water_income_fill
+```
+
+The equity analysis above does not reflect there is any inequity between incomes of households and Drinking Water Index. 
+
+
+
+Survey Regression on Income vs. Drinking Water Index
+
+```{r}
+bay_water_income_lm <-
+  bay_income %>% 
+  left_join(
+    ces4_map %>% 
+      st_drop_geometry(),
+    by = c("tract" = "Census Tract")
+  )%>%
+  filter(income== c("$75,000 to $99,999", "$100,000 to $124,999", "$125,000 to $149,999","$150,000 to $199,999","$200,000 or more") )%>%
+  mutate(perc_over75k=
+           estimate/`Total Population`)%>%
+  group_by(`Drinking Water`, tract)%>%
+  summarise(per_over75k= sum(perc_over75k))
+  
+```
+
+
+
+
+
+```{r}
+ggplot() +
+  geom_point(
+    data = bay_water_income_lm,
+    aes(
+      x = per_over75k,
+      y = `Drinking Water`
+    )
+  )+
+  geom_point() +
+  geom_smooth(method = "lm")
+```
+
+
+```{r}
+model <- lm(`Drinking Water` ~ per_over75k, bay_water_income_lm)
+
+summary(model)
+```
+
+Based on the above regression analysis, the drinking water index will increase by 142.27 for every unit increase in percent households with income that is greater than 75,000. However, the p-value for this analysis is 0.0978 which is greater than 0.05. As a result, the percent households with income that is greater than 75,000 is not a good predictor for drinking water index. Also, the adjusted R-squared value is 0.005549 which means the variation in per_over75k explain 0.5549% of the variation in drinking water index. 
+
+
+Now try to factor in Race
+```{r}
+bay_water_income_lm1 <- bay_income %>% 
+  left_join(
+    ces4_map %>% 
+    st_drop_geometry(),
+    by = c("tract" = "Census Tract")
+  )%>%
+  filter(income== c("$75,000 to $99,999", "$100,000 to $124,999", "$125,000 to $149,999","$150,000 to $199,999","$200,000 or more") )%>%
+  left_join(bay_race_tracts, by = c("tract" = "tract"))%>%
+  filter(income== c("$75,000 to $99,999", "$100,000 to $124,999", "$125,000 to $149,999","$150,000 to $199,999","$200,000 or more") )%>%
+  filter(race=="White Alone")%>%
+  mutate(perc_over75k=
+           estimate.x/`Total Population`)%>%
+  mutate(perc_white=
+           estimate.y/`Total Population`)
+
+
+
+```
+
+
+
+```{r}
+
+model <- lm(`Drinking Water` ~ perc_over75k+ perc_white, bay_water_income_lm1)
+
+summary(model)
+```
+
+With the addition of percentage of white households, the regression analysis produces p-values that are less than 0.05. The above analysis suggests that the drinking water index decrease by 917.6 for every percent increase in $75,000 income households. Decreasing the drinking water index represents less chemical contamination and violations in drinking water between 2005 to 2013. It also suggests that drinking water index increases by 189.32 for every percent increase in white proportion in the total population. The result coincides with the conclusion from the previous equity analysis between race and drinking water index. The adjusted R squared value is 0.03 which means that both race and income explains 3% of the variation in drinking water index. The result is similar to the celebrity lecture example. Two variables contribute to becoming celebrity. In this case, both race and income affect the variations in the drinking water index. Still, we can never be sure if the relationship between the variables are truth. There are many examples of two unrelated variables have apparent correlations. Therefore, we need to consider other possible variables that also affect the drinking water index. 
+

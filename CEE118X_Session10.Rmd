@@ -1,0 +1,39 @@
+---
+title: "CEE118X_Session10"
+author: "Bill Li"
+date: "11/16/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, warning=F, message = F) #warning messages and codes do not show
+```
+
+
+Over communicate causality? Simply compare two variables and say there is a relationship. (reflection on how  you communicate causality)
+
+
+#shinyapp.io
+
+-Tokens allows you to publish into your personal account
+-Show token and show secret and copy to clipboard
+-post tocken capied into console.
+-top right publish
+
+```{r}
+
+library(flexdashboard)
+library(tidyverse)
+library(leaflet)
+library(sf)
+library(plotly)
+
+pge_data_raw <- readRDS("pge_data_raw.rds")
+
+bay_zips <- readRDS("bay_zips.rds")
+
+
+
+
+```
+

@@ -476,7 +476,7 @@ pums_bart <- pums_2014_2019 %>%
 pums_pal <- colorNumeric(
   palette = "YlOrRd",
   domain = pums_bart %>% 
-    filter(year == 2017) %>% 
+    filter(year == 2017) %>%  
     pull(pop)
 )
 

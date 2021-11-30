@@ -303,5 +303,41 @@ Others:
   Treated in this case represents the pretreatment differeced between 01309 and Similar PUMAs line before 2018. 
   
   
+  
+```{r}
+data1 <- pums_2014_2019 %>%
+  mutate(
+    PWGTP = as.numeric(PWGTP)
+  )%>%
+  filter_all(all_vars(!is.na(.)))
+```
+  
+  
+  
+```{r}
+weighted_model <- data1 %>% 
+  lm(
+    formula = JWTR ~ SPORDER,
+    data = .,
+    weights = PWGTP
+  )
+```
 
+
+```{r}
+replicates_model<-
+  1:80%>%
+  map_dfr(function(x){
+    data1%>%
+      rename(replicate= paste0("PWGTP", x))%>%
+      lm(
+        formula= JWTR ~ SPORDER,
+        data= .,
+        weights= replicate
+      )%>%
+       .$coefficients %>% 
+      as.data.frame() %>% 
+      rownames_to_column()
+  })
+```
 
