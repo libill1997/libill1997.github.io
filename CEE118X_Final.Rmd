@@ -21,6 +21,14 @@ library(leaflet)
 library(dplyr)
 ```
 
+My Motivation:
+
+Recently, I had a conversation with a barber about her home's water quality. She complained that the water smelled like a rotten egg so she had to buy bottled water for cooking and drinking. She lives in East Palo Alto which is not very far away from the Stanford Campus located in Palo Alto. The drinking water supply for the bay area comes from the Hetch Hetchy reservoir. However, the water quality in the region can be different depending on the methods to treat drinking water, potential chemical contaminations, etc. The SF Gate news article stated that the drinking water quality in the Bay Area meets the federal health guideline. However, some toxic chemical concentrations are higher than the levels from scientific studies. The article also provided an example of more than 100 fold chromium concentration differences between Hayward and Daly City. As a result, there are situations where drinking water quality can vary greatly despite the water coming from the same source. 
+
+Since the current drinking water quality does not reflect the previous contaminations, a dataset that factors in the toxic chemical contaminations and violations can help us better understand the differences among cities in the Bay Area. CalEnviroScreen provides data of drinking water contaminant index. It accounts for the contaminations, level of contaminants and past violations in the drinking	water. However, it does not measure the provider’s current compliance with the regulations nor does it reflect the most recent drinking water quality. My hypothesis is that regions with high-income residents may have a lower drinking water contaminant index than low-income areas. I decided to use American Community Survey(ACS) data which provides the income information. Combining both ACS and CalEnviroScreen data can test if my hypothesis is correct. In addition to the income analysis, I also want to know if minorities are more likely to experience a lower drinking water index in the past. 
+
+
+
 ```{r} 
 #load American Community Survey one year data 
 acs_vars_2019_1yr <-
@@ -178,8 +186,8 @@ bay_water_race <-
         `Drinking Water` < 400 ~ "200-400",
         `Drinking Water` < 600 ~ "400-600",
         `Drinking Water` < 800 ~ "600-800",
-        `Drinking Water` < 1000 ~ "800-1000",
-        TRUE ~ "1000-1100"
+        `Drinking Water` < 1000 ~ "800-1000"
+        #TRUE ~ "1000-1100"
       ) 
   ) %>% 
   group_by(race, `Drinking Water Index`) %>% 
@@ -200,7 +208,7 @@ bay_water_race_fill <-
   ggplot() +
   geom_bar(
     aes(
-      x = `Drinking Water Index` %>% factor(levels = rev(c("Total","0-200","200-400","400-600","600-800","800-1000","1000-1100"))), 
+      x = `Drinking Water Index` %>% factor(levels = rev(c("Total","0-200","200-400","400-600","600-800","800-1000"))), 
       y = estimate,
       fill = race %>% factor(levels = rev(census_race_categories))
     ),
@@ -296,8 +304,8 @@ bay_water_income <-
         `Drinking Water` < 400 ~ "200-400",
         `Drinking Water` < 600 ~ "400-600",
         `Drinking Water` < 800 ~ "600-800",
-        `Drinking Water` < 1000 ~ "800-1000",
-        TRUE ~ "1000-1100"
+        `Drinking Water` < 1000 ~ "800-1000"
+        #TRUE ~ "1000-1100"
       ) 
   ) %>% 
   mutate(
@@ -326,26 +334,6 @@ bay_water_income <-
   summarize(estimate = sum(estimate, na.rm = T))
 ```
 
-        income == "Less than $10,000"~"0-10,000",
-        income == "$10,000 to $14,999"~"10,000-15,000",
-        income == "$15,000 to $19,999"~"15,000-20,000",
-        income == "$20,000 to $24,999"~"20,000-25,000",
-        income == "$25,000 to $29,999"~"25,000-30,000",
-        income == "$30,000 to $34,999"~"30,000-35,000",
-        income == "$35,000 to $39,999"~"35,000-40,000",
-        income == "$40,000 to $44,999"~"40,000-45,000",
-        income == "$45,000 to $49,999"~"45,000-50,000",
-        income == "$50,000 to $59,999"~"50,000-60,000",
-        income == "$60,000 to $74,999"~"60,000-75,000",
-        income == "$75,000 to $99,999"~"75,000-100,000",
-        income == "$100,000 to $124,999"~"100,000-125,000",
-        income == "$125,000 to $149,999"~"125,000-150,000",
-        income == "$150,000 to $199,999"~"150,000-200,000",
-        income == "$200,000 or more"~">200,000"
-
-
-
-factor(levels = rev(c("income", "$10,000 to $14,999","$100,000 to $124,999","$125,000 to $149,999", "$15,000 to $19,999","$150,000 to $199,999","$20,000 to $24,999","$200,000 or more","$25,000 to $29,999","$30,000 to $34,999","$35,000 to $39,999","$40,000 to $44,999","$45,000 to $49,999","$50,000 to $59,999","$60,000 to $74,999","$75,000 to $99,999","Less than $10,000")))
 
 ```{r}
 bay_water_income_fill <-
@@ -361,7 +349,7 @@ bay_water_income_fill <-
   ggplot() +
   geom_bar(
     aes(
-      x = `Drinking Water Index` %>% factor(levels = rev(c("Total","0-200","200-400","400-600","600-800","800-1000","1000-1100"))), 
+      x = `Drinking Water Index` %>% factor(levels = rev(c("Total","0-200","200-400","400-600","600-800","800-1000"))), 
       y = estimate,
       fill = income #%>% 
     ),
@@ -373,7 +361,7 @@ bay_water_income_fill <-
     y = "Proportion of households",
     title = "Bay Area Drinking Water Index by Income",
     subtitle = "Average drinking watercontaminant concentrations over one compliance cycle (2005-2013),\n aggregated by Census tract",
-    fill = "Incomes of the householder"
+    fill = "household income"
   ) +
   coord_flip() +
   #theme(
@@ -430,12 +418,12 @@ ggplot() +
 
 
 ```{r}
-model <- lm(`Drinking Water` ~ per_over75k, bay_water_income_lm)
+model1 <- lm(`Drinking Water` ~ per_over75k, bay_water_income_lm)
 
-summary(model)
+summary(model1)
 ```
 
-Based on the above regression analysis, the drinking water index will increase by 142.27 for every unit increase in percent households with income that is greater than 75,000. However, the p-value for this analysis is 0.0978 which is greater than 0.05. As a result, the percent households with income that is greater than 75,000 is not a good predictor for drinking water index. Also, the adjusted R-squared value is 0.005549 which means the variation in per_over75k explain 0.5549% of the variation in drinking water index. 
+Based on the above regression analysis, the drinking water index will increase by 142.27 for every 0.1 percent increase in percent households with income that is greater than 75,000. However, the p-value for this analysis is 0.0978 which is greater than 0.05. As a result, the percent households with income that is greater than 75,000 is not a good predictor for drinking water index. Also, the adjusted R-squared value is 0.005549 which means the variation in per_over75k explain 0.5549% of the variation in drinking water index. 
 
 
 Now try to factor in Race
@@ -462,11 +450,83 @@ bay_water_income_lm1 <- bay_income %>%
 
 
 ```{r}
-
-model <- lm(`Drinking Water` ~ perc_over75k+ perc_white, bay_water_income_lm1)
-
-summary(model)
+model2<- lm(`Drinking Water` ~ perc_white, bay_water_income_lm1)
+summary(model2)
 ```
 
-With the addition of percentage of white households, the regression analysis produces p-values that are less than 0.05. The above analysis suggests that the drinking water index decrease by 917.6 for every percent increase in $75,000 income households. Decreasing the drinking water index represents less chemical contamination and violations in drinking water between 2005 to 2013. It also suggests that drinking water index increases by 189.32 for every percent increase in white proportion in the total population. The result coincides with the conclusion from the previous equity analysis between race and drinking water index. The adjusted R squared value is 0.03 which means that both race and income explains 3% of the variation in drinking water index. The result is similar to the celebrity lecture example. Two variables contribute to becoming celebrity. In this case, both race and income affect the variations in the drinking water index. Still, we can never be sure if the relationship between the variables are truth. There are many examples of two unrelated variables have apparent correlations. Therefore, we need to consider other possible variables that also affect the drinking water index. 
+Based on the above regression analysis, the drinking water index will increase by 149.87 for every 0.1 percent increase in percentage of white population in the bay area. The p-value for this analysis is 0.015 which is less than 0.05. As a result, the percentage of white population is a good predictor for drinking water index. Also, the adjusted R-squared value is 0.01558 which means the variation in perc_white explains 1.498% of the variation in drinking water index. 
+
+
+```{r}
+
+model3 <- lm(`Drinking Water` ~ perc_over75k+ perc_white, bay_water_income_lm1)
+
+summary(model3)
+```
+
+With the addition of percentage of white households, the regression analysis produces p-values that are less than 0.05. The above analysis suggests that the drinking water index decrease by 917.6 for every 0.1 percent increase in $75,000 income households. Decreasing the drinking water index represents less chemical contamination and violations in drinking water between 2005 to 2013. It also suggests that drinking water index increases by 189.32 for every percent increase in white proportion in the total population. The result coincides with the conclusion from the previous equity analysis between race and drinking water index. The adjusted R squared value is 0.03 which means that both race and income explains 3% of the variation in drinking water index. 
+
+The result is similar to the Simpson's paradox example in the lecture. Simpson's paradox happens when a trend appears in multiple groups but the trend reverses when these groups combine together. In this scenario, there is no relationship between percent households with income that is greater than 75,000 and the drinking water index. There is a relationship between percentage of white households and the drinking water index. However, the p-value is close to 0.05 and the adjusted R-squared only accounts for roughly 1% of the trend. When combining the two variables with the drinking water index, there is a significant relationship and the adjusted R-square value accounts for 3% of the variations. 
+
+
+```{r}
+ggplot(
+  data = bay_water_income_lm1,
+    aes(
+      x = perc_over75k,
+      y = `Drinking Water`
+    ))+
+  geom_point(
+    aes(
+      color=perc_white
+    )
+  )
+```
+
+To get a sense of the Simpson's paradox. We can first look at the relationship between percentage of over $75,000 income households and the Drinking water Index with the color dimention of percentage of white population. From the scatter plot above, there are more lighter dots in the upper quadrant which means a higher Drinking water index value. 
+
+
+```{r}
+library(gtools)
+
+bay_water_income_lm1 %>% 
+  mutate(
+    college_round = quantcut(perc_white, 4)
+  ) %>% 
+  ggplot() +
+  geom_point(
+    aes(
+        x = perc_over75k,
+        y = `Drinking Water`,
+        color = college_round
+      )
+  ) +
+  geom_smooth(
+    aes(
+        x = perc_over75k,
+        y = `Drinking Water`,
+        color = college_round
+      ),
+    method = "lm",
+    se = F
+  ) +
+  geom_smooth(
+    aes(
+      x = perc_over75k,
+      y = `Drinking Water`
+    ),
+    method = "lm",
+    se = F,
+    color = "black",
+    linetype = 2
+  )
+```
+
+
+The black dotted line in the above chart represents an overall best fit line. The red line represents the trend for the lowest 25% of percentage of white population whereas the purple line represents the trend for the top 25% of perc_white. The red line shows a positive trend. The other three lines indicate negative trends. It explains the negative correlation between perc_over75k and the Drinking water index when we account for the perc_white. The lowest 25% of perc_white experiences a positive correlation between percentage of household income over $75,000 and the Drinking Water Index. The rest of the 75% of perc_white experiences the opposite. Therefore, the regression analysis when incoporating percentage of white population shows a significant negative relationship between perc_over75k and the drinking water index. 
+
+
+
+
+
 
