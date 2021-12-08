@@ -9,3 +9,13 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+```{r}
+point <- 
+  c(-122.17959027069519, 37.40834426689836) %>% #paste from Google map right click
+  st_point() %>% 
+  st_sfc() %>% 
+  st_set_crs(4326)
+
+mapview(point)
+```
+

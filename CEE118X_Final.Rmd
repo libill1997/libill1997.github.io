@@ -191,7 +191,8 @@ bay_water_race <-
       ) 
   ) %>% 
   group_by(race, `Drinking Water Index`) %>% 
-  summarize(estimate = sum(estimate, na.rm = T))
+  summarize(estimate = sum(estimate, na.rm = T))%>%
+  filter(!is.na(`Drinking Water Index`))
 ```
 
 ```{r}
@@ -331,7 +332,8 @@ bay_water_income <-
       )
   )%>%
   group_by(`Drinking Water Index`,income) %>% 
-  summarize(estimate = sum(estimate, na.rm = T))
+  summarize(estimate = sum(estimate, na.rm = T))%>%
+  filter(!is.na(`Drinking Water Index`))
 ```
 
 
@@ -393,7 +395,7 @@ bay_water_income_lm <-
   )%>%
   filter(income== c("$75,000 to $99,999", "$100,000 to $124,999", "$125,000 to $149,999","$150,000 to $199,999","$200,000 or more") )%>%
   mutate(perc_over75k=
-           estimate/`Total Population`)%>%
+           (estimate/`Total Population`)*100)%>%
   group_by(`Drinking Water`, tract)%>%
   summarise(per_over75k= sum(perc_over75k))
   
@@ -423,10 +425,24 @@ model1 <- lm(`Drinking Water` ~ per_over75k, bay_water_income_lm)
 summary(model1)
 ```
 
-Based on the above regression analysis, the drinking water index will increase by 142.27 for every 0.1 percent increase in percent households with income that is greater than 75,000. However, the p-value for this analysis is 0.0978 which is greater than 0.05. As a result, the percent households with income that is greater than 75,000 is not a good predictor for drinking water index. Also, the adjusted R-squared value is 0.005549 which means the variation in per_over75k explain 0.5549% of the variation in drinking water index. 
+Based on the above regression analysis, the drinking water index will increase by 1.4227 for every 1 percent increase in percent households with income that is greater than 75,000. However, the p-value for this analysis is 0.0978 which is greater than 0.05. As a result, the percent households with income that is greater than 75,000 is not a good predictor for drinking water index. Also, the adjusted R-squared value is 0.005549 which means the variation in per_over75k explain 0.5549% of the variation in drinking water index. 
 
 
 Now try to factor in Race
+
+```{r}
+bay_race_tracts1<- bay_race_tracts%>%
+  group_by(tract, race)%>%
+  summarize(estimate= sum(estimate))%>%
+  filter(race=="White Alone")%>%
+  left_join(
+    ces4_map %>% 
+    st_drop_geometry(),
+    by = c("tract" = "Census Tract")
+  )%>%
+  mutate(perc_white= (estimate/`Total Population`)*100)
+```
+
 ```{r}
 bay_water_income_lm1 <- bay_income %>% 
   left_join(
@@ -435,17 +451,20 @@ bay_water_income_lm1 <- bay_income %>%
     by = c("tract" = "Census Tract")
   )%>%
   filter(income== c("$75,000 to $99,999", "$100,000 to $124,999", "$125,000 to $149,999","$150,000 to $199,999","$200,000 or more") )%>%
-  left_join(bay_race_tracts, by = c("tract" = "tract"))%>%
-  filter(income== c("$75,000 to $99,999", "$100,000 to $124,999", "$125,000 to $149,999","$150,000 to $199,999","$200,000 or more") )%>%
-  filter(race=="White Alone")%>%
-  mutate(perc_over75k=
-           estimate.x/`Total Population`)%>%
-  mutate(perc_white=
-           estimate.y/`Total Population`)
-
-
-
-```
+  #left_join(bay_race_tracts1, by = c("tract" = "tract"))%>%
+  #filter(race=="White Alone")#%>%
+    mutate(perc_over75k=
+           (estimate/`Total Population`)*100)%>%
+  #mutate(perc_white=
+           #(estimate.y/`Total Population`)*100)%>%
+  group_by(`Drinking Water`, tract)%>%
+  summarise(perc_over75k= sum(perc_over75k))%>%
+  left_join(bay_race_tracts1, by = c("tract" = "tract"))%>%
+  select(`Drinking Water.x`, tract, perc_over75k, perc_white)%>%
+  mutate(`Drinking Water`= `Drinking Water.x`)%>%
+  select(-`Drinking Water.x`)
+  
+```  
 
 
 
@@ -454,7 +473,7 @@ model2<- lm(`Drinking Water` ~ perc_white, bay_water_income_lm1)
 summary(model2)
 ```
 
-Based on the above regression analysis, the drinking water index will increase by 149.87 for every 0.1 percent increase in percentage of white population in the bay area. The p-value for this analysis is 0.015 which is less than 0.05. As a result, the percentage of white population is a good predictor for drinking water index. Also, the adjusted R-squared value is 0.01558 which means the variation in perc_white explains 1.498% of the variation in drinking water index. 
+Based on the above regression analysis, the drinking water index will increase by 1.4987 for every percent increase in percentage of white population in the bay area. The p-value for this analysis is 0.015 which is less than 0.05. As a result, the percentage of white population is a good predictor for drinking water index. Also, the adjusted R-squared value is 0.01558 which means the variation in perc_white explains 1.498% of the variation in drinking water index. 
 
 
 ```{r}
@@ -464,9 +483,9 @@ model3 <- lm(`Drinking Water` ~ perc_over75k+ perc_white, bay_water_income_lm1)
 summary(model3)
 ```
 
-With the addition of percentage of white households, the regression analysis produces p-values that are less than 0.05. The above analysis suggests that the drinking water index decrease by 917.6 for every 0.1 percent increase in $75,000 income households. Decreasing the drinking water index represents less chemical contamination and violations in drinking water between 2005 to 2013. It also suggests that drinking water index increases by 189.32 for every percent increase in white proportion in the total population. The result coincides with the conclusion from the previous equity analysis between race and drinking water index. The adjusted R squared value is 0.03 which means that both race and income explains 3% of the variation in drinking water index. 
+With the addition of percentage of white households, the regression analysis produces p-values that are greater than 0.05. The above analysis suggests that the drinking water index increase by 0.05698 for every 1 percent increase in $75,000 income households. It also suggests that drinking water index increases by 1.47139 for every percent increase in white proportion in the total population. Although the result coincides with the conclusion from the previous equity analysis between race and drinking water index, the p-values exceed 0.05 for both parameters. Therefore, we can not say that there is a relationship between Drinking water index and perc_over75k and perc_white. The adjusted R squared value is 0.03 which means that both race and income explains 1% of the variation in drinking water index. 
 
-The result is similar to the Simpson's paradox example in the lecture. Simpson's paradox happens when a trend appears in multiple groups but the trend reverses when these groups combine together. In this scenario, there is no relationship between percent households with income that is greater than 75,000 and the drinking water index. There is a relationship between percentage of white households and the drinking water index. However, the p-value is close to 0.05 and the adjusted R-squared only accounts for roughly 1% of the trend. When combining the two variables with the drinking water index, there is a significant relationship and the adjusted R-square value accounts for 3% of the variations. 
+Before the data correction, there was a Simpson's paradox. Simpson's paradox happens when a trend appears in multiple groups but the trend reverses when these groups combine together. In this scenario, there is no relationship between percent households with income that is greater than 75,000 and the drinking water index. There is a relationship between percentage of white households and the drinking water index. The slope is positive for both scenarios. When combining the two variables with the drinking water index, the slope now is still positive. As a result, there is no Simpson's paradox in the above analysis. 
 
 
 ```{r}
@@ -483,7 +502,8 @@ ggplot(
   )
 ```
 
-To get a sense of the Simpson's paradox. We can first look at the relationship between percentage of over $75,000 income households and the Drinking water Index with the color dimention of percentage of white population. From the scatter plot above, there are more lighter dots in the upper quadrant which means a higher Drinking water index value. 
+
+To prove that there is no Simpson's paradox. We can first look at the relationship between percentage of over $75,000 income households and the Drinking water Index with the color dimension of percentage of white population. From the scatter plot above, darker and lighter spots are equally distributed in the chart. 
 
 
 ```{r}
@@ -523,8 +543,7 @@ bay_water_income_lm1 %>%
 ```
 
 
-The black dotted line in the above chart represents an overall best fit line. The red line represents the trend for the lowest 25% of percentage of white population whereas the purple line represents the trend for the top 25% of perc_white. The red line shows a positive trend. The other three lines indicate negative trends. It explains the negative correlation between perc_over75k and the Drinking water index when we account for the perc_white. The lowest 25% of perc_white experiences a positive correlation between percentage of household income over $75,000 and the Drinking Water Index. The rest of the 75% of perc_white experiences the opposite. Therefore, the regression analysis when incoporating percentage of white population shows a significant negative relationship between perc_over75k and the drinking water index. 
-
+The black dotted line in the above chart represents an overall best fit line. The red line represents the trend for the lowest 25% of percentage of white population whereas the purple line represents the trend for the top 25% of perc_white. The red line and green line display positive trends. The two other lines indicate negative trends. It explains that the relationship is not significant when accounting both perc_over75k and perc_white. 
 
 
 
